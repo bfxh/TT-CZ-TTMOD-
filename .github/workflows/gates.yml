@@ -1,6 +1,6 @@
 name: gates
 
-# 门禁全部与本地同源：本地 `python tools/*.py` 与 `ruff` / `mypy` 跑什么，CI 就跑什么。
+# 门禁全部与本地同源：本地 `python tools/*.py` 与 ruff / mypy 跑什么，CI 就跑什么。
 # 另有一组「unified-rx-mcp 门禁」把工具链钉在固定提交上复核，避免判据漂移。
 #
 # 有意不在 CI 里跑 verify_ui.py：它需要本地服务 + 真实浏览器 + catalog_v3.json，
@@ -54,9 +54,6 @@ jobs:
   rx-gates:
     name: unified-rx-mcp 门禁（钉提交）
     runs-on: ubuntu-latest
-    env:
-      RX_SHA: 2cae4c316be161912374eb4db81a26efdcad68c4
-      RX_DIR: ${{ runner.temp }}/unified-rx-mcp
     steps:
       - uses: actions/checkout@v4
 
@@ -68,9 +65,13 @@ jobs:
         run: pip install --disable-pip-version-check "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}"
 
       - name: 取门禁工具链（固定提交，判据可复现）
+        env:
+          RX_SHA: 2cae4c316be161912374eb4db81a26efdcad68c4
         run: |
+          RX_DIR="${RUNNER_TEMP}/unified-rx-mcp"
           git clone --quiet https://github.com/bfxh/unified-rx-mcp.git "${RX_DIR}"
           git -C "${RX_DIR}" checkout --quiet "${RX_SHA}"
+          echo "RX_DIR=${RX_DIR}" >> "${GITHUB_ENV}"
           echo "工具链提交：$(git -C "${RX_DIR}" rev-parse HEAD)"
 
       - name: 静态门（ruff 逐规则棘轮，只准减）
