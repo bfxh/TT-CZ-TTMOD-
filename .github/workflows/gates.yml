@@ -20,7 +20,7 @@ env:
   MYPY_VERSION: "2.3.1"
   PY_FILES: >-
     build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py process_obj.py
-    tools/path_check.py tools/secret_check.py tools/syntax_check.py
+    tools/path_check.py tools/secret_check.py tools/syntax_check.py tools/_push_via_api.py
 
 jobs:
   repo-gates:
