@@ -53,7 +53,13 @@ jobs:
 
   rx-gates:
     name: unified-rx-mcp 门禁（钉提交）
-    runs-on: ubuntu-latest
+    # 这套工具链是 Windows 专属：rx-scan 直接链 kernel32/advapi32/user32，
+    # 在 Linux 上连链接都过不去（rust-lld: unable to find library -lkernel32）。
+    # 它的定位本就是「本机把审核跑完，CI 只是镜像」，所以这里用 Windows runner。
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -75,15 +81,20 @@ jobs:
           echo "工具链提交：$(git -C "${RX_DIR}" rev-parse HEAD)"
 
           # 重复代码门靠 rx-scan 引擎；缺引擎时该门按设计「不静默判绿」直接红，
-          # 所以这里真把它编出来（零依赖 Rust，edition 2024 需 rustc ≥1.85）。
+          # 所以这里真把它编出来（该仓 [dependencies] 恒空，构建很快）。
           rustup default stable >/dev/null 2>&1 || true
           rustc --version
           cargo build --quiet --release --bin rx-scan --manifest-path "${RX_DIR}/rust/Cargo.toml"
-          test -x "${RX_DIR}/rust/target/release/rx-scan"
-          echo "rx-scan：$(ls -l "${RX_DIR}/rust/target/release/rx-scan" | awk '{print $5" B"}')"
+
+          # 同时放进门禁约定的默认位置（%TEMP%/rx-rs-target/release）并显式指给环境变量
+          EXE="${RX_DIR}/rust/target/release/rx-scan.exe"
+          test -f "${EXE}"
+          mkdir -p "${TEMP}/rx-rs-target/release"
+          cp "${EXE}" "${TEMP}/rx-rs-target/release/rx-scan.exe"
+          echo "rx-scan：$(stat -c %s "${EXE}") B"
 
           echo "RX_DIR=${RX_DIR}" >> "${GITHUB_ENV}"
-          echo "UNIFIED_RX_RS_EXE=${RX_DIR}/rust/target/release/rx-scan" >> "${GITHUB_ENV}"
+          echo "UNIFIED_RX_RS_EXE=${EXE}" >> "${GITHUB_ENV}"
 
       - name: 静态门（ruff 逐规则棘轮，只准减）
         run: python "${RX_DIR}/scripts/lint_gate.py" --root .
