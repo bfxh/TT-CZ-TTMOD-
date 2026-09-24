@@ -57,6 +57,11 @@ jobs:
     # 在 Linux 上连链接都过不去（rust-lld: unable to find library -lkernel32）。
     # 它的定位本就是「本机把审核跑完，CI 只是镜像」，所以这里用 Windows runner。
     runs-on: windows-latest
+    # Windows 控制台默认 cp1252，门禁脚本要往 stdout 打中文诊断（工具链文档要求
+    # `python -X utf8`）。这里同时把解释器与 IO 编码都钉成 UTF-8。
+    env:
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
     defaults:
       run:
         shell: bash
@@ -97,10 +102,10 @@ jobs:
           echo "UNIFIED_RX_RS_EXE=${EXE}" >> "${GITHUB_ENV}"
 
       - name: 静态门（ruff 逐规则棘轮，只准减）
-        run: python "${RX_DIR}/scripts/lint_gate.py" --root .
+        run: python -X utf8 "${RX_DIR}/scripts/lint_gate.py" --root .
 
       - name: 重复代码门（基线 0 对，新增即红）
-        run: python "${RX_DIR}/scripts/dupe_gate.py" --root .
+        run: python -X utf8 "${RX_DIR}/scripts/dupe_gate.py" --root .
 
       - name: 类型门（mypy 默认档，零容忍）
-        run: python "${RX_DIR}/scripts/type_gate.py" --root . --paths ${PY_FILES}
+        run: python -X utf8 "${RX_DIR}/scripts/type_gate.py" --root . --paths ${PY_FILES}
