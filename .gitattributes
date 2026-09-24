@@ -1,0 +1,15 @@
+# 统一换行：文本一律 LF 入库（Windows 工作树不必再产生 CRLF 噪音）
+* text=auto eol=lf
+
+# 明确二进制，避免 git 试图做行尾/差异处理
+*.webp binary
+*.png  binary
+*.jpg  binary
+*.gz   binary
+*.obj  -text
+*.obj.js -text
+*.ico  binary
+
+# 生成物不参与语言统计与 diff
+catalog_v3.json -diff
+_thumbs/** -diff

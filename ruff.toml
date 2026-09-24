@@ -1,0 +1,42 @@
+# ruff 配置 —— 本项目自己的静态门规则集，明示在此，不依赖机器级配置。
+#
+# 只选「会变成 bug 的那一类」：
+#   F      pyflakes：未定义名 / 未用导入 / 重复定义
+#   E4/E7/E9  导入与语句的硬错误
+#   B / BLE   bugbear / 裸捕获
+#   C4 / PIE / RET / SIM / FURB / PERF / UP  现代化与简化
+#   I      导入排序
+#   RUF    含 RUF100 未用 noqa
+# 口径与 D:\开发\unified-rx-mcp 的 lint 门一致，便于 CI 直接调用其 scripts/lint_gate.py。
+#
+# 明示排除（本仓风格，不是缺陷）：
+#   · RUF001/002/003：中文注释与字符串被判「歧义 Unicode」——本仓注释就是中文；
+#   · UP031：CLI 输出沿用 printf 口径，动了要重签截图金样；
+#   · S（bandit）：进程调用与文件读写是本项目的本职工作，安全面另由路径门与
+#     明文门负责，bandit 风格只会刷噪音；
+#   · E501/D：行长与文档串属格式之争，不进 bug 门。
+
+target-version = "py310"
+line-length = 110
+
+extend-exclude = [
+  "models",
+  "_thumbs",
+  "_res",
+  "_shots",
+  "design",
+]
+
+[lint]
+select = [
+  "F", "E4", "E7", "E9",
+  "B", "BLE", "C4", "FURB", "I", "PERF", "PIE", "RET", "RUF", "SIM", "UP",
+]
+ignore = [
+  "RUF001", "RUF002", "RUF003",
+  "UP031",
+  # E701/E702（单行 if / 分号连写）是排版取向而非缺陷：本项目是脚本工具集，
+  # `if not x: return` 与 `a = 1; b = 2` 的紧凑写法有意为之。E7 其余规则
+  # （E711/E712/E713/E714/E722/E731/E741/E742/E902）全部保留。
+  "E701", "E702",
+]

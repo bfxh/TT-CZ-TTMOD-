@@ -1,0 +1,83 @@
+name: gates
+
+# 门禁全部与本地同源：本地 `python tools/*.py` 与 `ruff` / `mypy` 跑什么，CI 就跑什么。
+# 另有一组「unified-rx-mcp 门禁」把工具链钉在固定提交上复核，避免判据漂移。
+#
+# 有意不在 CI 里跑 verify_ui.py：它需要本地服务 + 真实浏览器 + catalog_v3.json，
+# 而 catalog 与 models/ 都不入仓（版权与体积原因）。界面回归留在本地跑，命令写在 README。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  RUFF_VERSION: "0.16.2"
+  MYPY_VERSION: "2.3.1"
+  PY_FILES: >-
+    build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py process_obj.py
+    tools/path_check.py tools/secret_check.py tools/syntax_check.py
+
+jobs:
+  repo-gates:
+    name: 自包含三门 + 静态门
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 路径纪律门 P1-P5
+        run: python tools/path_check.py
+
+      - name: 明文门（凭据掩码扫描）
+        run: python tools/secret_check.py
+
+      - name: 语法门（Python / 内联 JS / JSON）
+        run: python tools/syntax_check.py
+
+      - name: 安装静态门工具（钉版本）
+        run: pip install --disable-pip-version-check "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}"
+
+      - name: ruff 逐规则棘轮（基线 lint-baseline.json）
+        run: ruff check .
+
+      - name: mypy 默认档零容忍
+        run: python -m mypy --config-file mypy.ini ${PY_FILES}
+
+  rx-gates:
+    name: unified-rx-mcp 门禁（钉提交）
+    runs-on: ubuntu-latest
+    env:
+      RX_SHA: 2cae4c316be161912374eb4db81a26efdcad68c4
+      RX_DIR: ${{ runner.temp }}/unified-rx-mcp
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 安装静态门工具（钉版本）
+        run: pip install --disable-pip-version-check "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}"
+
+      - name: 取门禁工具链（固定提交，判据可复现）
+        run: |
+          git clone --quiet https://github.com/bfxh/unified-rx-mcp.git "${RX_DIR}"
+          git -C "${RX_DIR}" checkout --quiet "${RX_SHA}"
+          echo "工具链提交：$(git -C "${RX_DIR}" rev-parse HEAD)"
+
+      - name: 静态门（ruff 逐规则棘轮，只准减）
+        run: python "${RX_DIR}/scripts/lint_gate.py" --root .
+
+      - name: 重复代码门（基线 0 对，新增即红）
+        run: python "${RX_DIR}/scripts/dupe_gate.py" --root .
+
+      - name: 类型门（mypy 默认档，零容忍）
+        run: python "${RX_DIR}/scripts/type_gate.py" --root . --paths ${PY_FILES}

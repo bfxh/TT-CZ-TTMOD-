@@ -1,0 +1,4 @@
+{
+ "_doc": "Python 静态门基线（脚本 scripts/lint_gate.py）：规则号 → 命中数。棘轮只准减；涨一个或冒出新规则号即红。",
+ "counts": {}
+}

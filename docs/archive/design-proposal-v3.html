@@ -1,0 +1,610 @@
+<!-- 存档：这是 2026-09-22 那一轮的探索稿，主张 iOS 液态玻璃 + 彩色徽标，
+     已被当前「一套灰阶 + 单一强调色」的实现取代。保留仅为留痕，不是现行规范。
+     现行规范见 docs/DESIGN.md。 -->
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>资产库 UI 设计方案 v4 · 符号优先</title>
+<script src="../_res/icons.js"></script>
+<style>
+:root{
+  --bg:#F2F2F7; --bg2:#FFFFFF;
+  --panel:rgba(255,255,255,.72); --panel2:rgba(255,255,255,.86);
+  --sep:rgba(60,60,67,.11); --sep2:rgba(60,60,67,.07);
+  --label:#000; --label2:rgba(60,60,67,.6); --label3:rgba(60,60,67,.32);
+  --fill:rgba(120,120,128,.12); --fill2:rgba(120,120,128,.08);
+  --blue:#007AFF; --green:#34C759; --indigo:#5856D6; --orange:#FF9500;
+  --purple:#BF5AF2; --red:#FF3B30; --teal:#30B0C7; --pink:#FF375F;
+  --yellow:#FFCC00; --brown:#AC8E68; --gray:#8E8E93;
+  --r1:10px; --r2:14px; --r3:20px; --r4:28px;
+  --glass:brightness(1.06) saturate(180%) blur(30px);
+  --shadow:0 1px 0 rgba(255,255,255,.75) inset, 0 10px 34px rgba(0,0,0,.07);
+}
+[data-theme="dark"]{
+  --bg:#000; --bg2:#1C1C1E;
+  --panel:rgba(28,28,30,.72); --panel2:rgba(44,44,46,.86);
+  --sep:rgba(255,255,255,.12); --sep2:rgba(255,255,255,.07);
+  --label:#F5F5F7; --label2:rgba(235,235,245,.6); --label3:rgba(235,235,245,.32);
+  --fill:rgba(118,118,128,.24); --fill2:rgba(118,118,128,.16);
+  --blue:#0A84FF; --green:#30D158; --indigo:#5E5CE6; --orange:#FF9F0A;
+  --purple:#BF5AF2; --red:#FF453A; --teal:#64D2FF; --pink:#FF375F;
+  --yellow:#FFD60A; --brown:#AC8E68; --gray:#98989D;
+  --glass:brightness(.7) saturate(180%) blur(30px);
+  --shadow:0 1px 0 rgba(255,255,255,.12) inset, 0 10px 34px rgba(0,0,0,.5);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font:400 14px/1.55 -apple-system,"SF Pro Text","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  color:var(--label); background:var(--bg);
+  background-image:
+    radial-gradient(900px 620px at 12% -8%, rgba(0,122,255,.10), transparent 62%),
+    radial-gradient(760px 560px at 92% 4%, rgba(191,90,242,.10), transparent 60%),
+    radial-gradient(700px 500px at 50% 105%, rgba(52,199,89,.08), transparent 62%);
+  background-attachment:fixed; -webkit-font-smoothing:antialiased;
+}
+.ic{width:1em;height:1em;display:block;flex:0 0 auto}
+.glass{background:var(--panel);-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);
+  border:1px solid rgba(255,255,255,.55);box-shadow:var(--shadow)}
+[data-theme="dark"] .glass{border-color:rgba(255,255,255,.1)}
+
+/* ── 页头 ── */
+header{position:sticky;top:0;z-index:60;padding:12px 22px;display:flex;align-items:center;gap:14px;
+  background:var(--panel);-webkit-backdrop-filter:var(--glass);backdrop-filter:var(--glass);
+  border-bottom:1px solid var(--sep)}
+.brandmark{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:19px;
+  color:#fff;background:linear-gradient(145deg,var(--blue),var(--indigo));box-shadow:0 4px 14px rgba(0,122,255,.35)}
+h1{font-size:16px;font-weight:600;letter-spacing:-.2px}
+h1 small{font-weight:400;color:var(--label2);font-size:12.5px;margin-left:8px}
+.spacer{flex:1}
+.mini{display:flex;gap:6px}
+.mini a{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:15px;
+  color:var(--label2);text-decoration:none;background:var(--fill);transition:.18s}
+.mini a:hover{background:var(--blue);color:#fff;transform:translateY(-1px)}
+.tbtn{width:30px;height:30px;border-radius:9px;border:0;background:var(--fill);color:var(--label2);
+  font-size:16px;cursor:pointer;display:grid;place-items:center}
+.tbtn:hover{background:var(--fill)}
+
+/* ── 布局 ── */
+.wrap{display:grid;grid-template-columns:190px minmax(0,1fr);gap:26px;max-width:1320px;margin:0 auto;padding:26px 22px 90px}
+nav.toc{position:sticky;top:74px;align-self:start;display:flex;flex-direction:column;gap:2px}
+nav.toc a{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:10px;font-size:13px;
+  color:var(--label2);text-decoration:none;transition:.16s}
+nav.toc a b{font:600 10.5px/1 ui-monospace,monospace;color:var(--label3);letter-spacing:.5px}
+nav.toc a:hover,nav.toc a.on{background:var(--fill);color:var(--label)}
+nav.toc a.on{font-weight:600;color:var(--label)}
+main{display:flex;flex-direction:column;gap:26px;min-width:0}
+
+section{scroll-margin-top:74px}
+.sechd{display:flex;align-items:baseline;gap:11px;margin-bottom:12px}
+.sechd .no{font:600 11px/1 ui-monospace,monospace;color:var(--blue);letter-spacing:1px}
+.sechd h2{font-size:19px;font-weight:650;letter-spacing:-.3px}
+.sechd .sub{font-size:12.5px;color:var(--label2)}
+.card{background:var(--bg2);border:1px solid var(--sep);border-radius:var(--r3);padding:20px 22px;
+  box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.lead{font-size:13.5px;color:var(--label2);margin-bottom:16px;max-width:76ch}
+b.k{font-weight:600;color:var(--label)}
+
+/* ── 诊断表 ── */
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:13px}
+thead th{text-align:left;font-size:11px;font-weight:600;color:var(--label3);letter-spacing:.4px;
+  padding:0 10px 8px;border-bottom:1px solid var(--sep);white-space:nowrap}
+tbody td{padding:11px 10px;border-bottom:1px solid var(--sep2);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+td.n{font:600 11px/1.5 ui-monospace,monospace;color:var(--label3);white-space:nowrap}
+td .ttl{font-weight:600;margin-bottom:3px}
+td .ev{color:var(--label2);font-size:12.5px}
+td .fx{color:var(--green);font-size:12.5px;font-weight:500}
+.tagx{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;padding:2.5px 8px;
+  border-radius:999px;background:var(--fill);color:var(--label2);white-space:nowrap}
+.tagx.bad{background:rgba(255,59,48,.12);color:var(--red)}
+.tagx.mid{background:rgba(255,149,0,.14);color:var(--orange)}
+
+/* ── 原则卡 ── */
+.pri{display:grid;grid-template-columns:repeat(auto-fit,minmax(228px,1fr));gap:12px}
+.pc{border:1px solid var(--sep);border-radius:var(--r2);padding:16px;background:var(--fill2)}
+.pc .si{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;font-size:22px;
+  color:#fff;margin-bottom:11px}
+.pc h3{font-size:14px;font-weight:650;margin-bottom:5px}
+.pc p{font-size:12.5px;color:var(--label2);line-height:1.6}
+
+/* ── 符号目录 ── */
+.icgroup{margin-bottom:22px}
+.icgroup > h4{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:650;color:var(--label2);
+  letter-spacing:.3px;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid var(--sep)}
+.icgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px}
+.iccell{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:12px;background:var(--fill2);
+  border:1px solid transparent;transition:.16s}
+.iccell:hover{background:var(--fill);border-color:var(--sep)}
+.iccell .sw{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:20px;
+  background:var(--bg2);border:1px solid var(--sep);flex:0 0 auto}
+.iccell .tx{min-width:0}
+.iccell .nm{font-size:12.5px;font-weight:600;line-height:1.3}
+.iccell .ky{font:400 10px/1.4 ui-monospace,monospace;color:var(--label3);word-break:break-all}
+
+/* ── 线框 ── */
+.wf{border-radius:var(--r2);overflow:hidden;border:1px solid var(--sep);background:var(--bg2)}
+.wfbar{height:38px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid var(--sep);
+  background:var(--fill2)}
+.wfbody{display:grid;grid-template-columns:56px minmax(0,1fr);height:330px}
+.wfrail{border-right:1px solid var(--sep);background:var(--fill2);display:flex;flex-direction:column;
+  align-items:center;gap:6px;padding:9px 0}
+.wfrail i{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;color:var(--label2)}
+.wfrail i.on{background:var(--blue);color:#fff}
+.wfmain{display:flex;flex-direction:column;min-width:0}
+.wfmetrics{height:34px;display:flex;align-items:center;gap:6px;padding:0 12px;border-bottom:1px solid var(--sep2);
+  font-size:12px;color:var(--label2)}
+.wfcards{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:12px;align-content:start}
+.wfcard{border:1px solid var(--sep);border-radius:12px;overflow:hidden;background:var(--bg2)}
+.wfth{height:66px;background:var(--fill);display:grid;place-items:center;font-size:22px;color:var(--label3)}
+.wfmeta{padding:7px 8px;display:flex;flex-direction:column;gap:3px}
+.wfmeta .t{font-size:11px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wfmeta .m{display:flex;gap:7px;font-size:10px;color:var(--label2);font-variant-numeric:tabular-nums}
+.wfmeta .m span{display:flex;align-items:center;gap:2px}
+.wfmeta .m span svg{width:11px;height:11px}
+.wfstat{height:26px;border-top:1px solid var(--sep);display:flex;align-items:center;gap:10px;padding:0 12px;
+  font-size:11px;color:var(--label3);background:var(--fill2)}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:12px;font-size:12px;color:var(--label2)}
+.legend b{display:inline-flex;align-items:center;gap:5px;color:var(--label);font-weight:600}
+.legend b svg{width:15px;height:15px}
+
+/* ── 前后对比 ── */
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:900px){.cmp{grid-template-columns:1fr}.wrap{grid-template-columns:1fr}.wfbody{grid-template-columns:44px 1fr}.wfcards{grid-template-columns:repeat(2,1fr)}}
+.cmpcol h5{font-size:12px;font-weight:650;color:var(--label3);letter-spacing:.4px;margin-bottom:9px;display:flex;align-items:center;gap:6px}
+.demo{border:1px solid var(--sep);border-radius:var(--r2);padding:14px;background:var(--bg2)}
+.democard{border:1px solid var(--sep);border-radius:12px;overflow:hidden;background:var(--bg2);max-width:236px}
+.demoth{height:104px;display:grid;place-items:center;font-size:26px;color:var(--label3);background:var(--fill)}
+.demobody{padding:9px 10px}
+.demobody .nm{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:6px}
+.demobody .badges{display:flex;gap:5px;margin-bottom:6px}
+.bg{font-size:10.5px;font-weight:600;padding:2px 7px;border-radius:999px;display:inline-flex;align-items:center;gap:4px}
+.bg svg{width:11px;height:11px}
+.mrow{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:11px;color:var(--label2);font-variant-numeric:tabular-nums}
+.mrow span{display:flex;align-items:center;gap:3px}
+.mrow svg{width:12px;height:12px}
+.oldbody{font-size:11px;color:var(--label3);padding:8px 10px;border-top:1px solid var(--sep2);line-height:1.7}
+.note{font-size:12px;color:var(--label2);margin-top:10px;padding-left:11px;border-left:2px solid var(--blue)}
+
+/* ── 流程 ── */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.step{flex:1;min-width:132px;position:relative;padding:14px 12px;border:1px solid var(--sep);border-radius:var(--r2);
+  background:var(--bg2);margin-right:22px;margin-bottom:8px}
+.step:last-child{margin-right:0}
+.step::after{content:"";position:absolute;right:-19px;top:50%;width:14px;height:14px;margin-top:-7px;
+  border-right:2px solid var(--sep);border-top:2px solid var(--sep);transform:rotate(45deg)}
+.step:last-child::after{display:none}
+.step .si{font-size:19px;color:var(--blue);margin-bottom:7px}
+.step h6{font-size:12.5px;font-weight:650;margin-bottom:3px}
+.step p{font-size:11.5px;color:var(--label2)}
+
+/* ── 令牌 ── */
+.tok{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:10px}
+.tk{border:1px solid var(--sep);border-radius:12px;padding:11px 12px}
+.tk .l{font-size:10.5px;color:var(--label3);letter-spacing:.3px;margin-bottom:6px}
+.tk .v{font:500 12px/1.5 ui-monospace,monospace}
+.swatches{display:flex;flex-wrap:wrap;gap:6px}
+.sw{width:76px;border-radius:9px;overflow:hidden;border:1px solid var(--sep);font-size:9.5px}
+.sw .c{height:34px}
+.sw .t{padding:4px 6px;font:500 9.5px/1.3 ui-monospace,monospace;color:var(--label2)}
+.rules{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+.rule{display:flex;gap:9px;font-size:12.5px;color:var(--label2);align-items:flex-start}
+.rule svg{width:15px;height:15px;margin-top:2px;flex:0 0 auto}
+.rule.no svg{color:var(--red)}
+.rule.yes svg{color:var(--green)}
+.prorow{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.pbtn{padding:9px 16px;border-radius:12px;border:1px solid var(--sep);background:var(--bg2);font-size:13px;
+  font-weight:600;cursor:pointer;display:inline-flex;align-items:center;gap:7px;transition:.18s}
+.pbtn svg{width:16px;height:16px}
+.pbtn.pri{background:var(--blue);border-color:var(--blue);color:#fff}
+.pbtn:hover{transform:translateY(-1px);box-shadow:0 6px 18px rgba(0,0,0,.12)}
+iframe.proto{width:100%;height:760px;border:1px solid var(--sep);border-radius:var(--r3);background:var(--bg);display:block}
+footer{max-width:1320px;margin:0 auto;padding:0 22px 40px;font-size:12px;color:var(--label3)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brandmark"><span data-i="cube"></span></div>
+  <h1>资产库 UI 设计方案 v4<small>符号优先 · 信息首要 · iOS 26 液态玻璃</small></h1>
+  <div class="spacer"></div>
+  <div class="mini">
+    <a href="#s1" title="01 诊断">01</a><a href="#s2" title="02 原则">02</a>
+    <a href="#s3" title="03 符号系统">03</a><a href="#s4" title="04 布局">04</a>
+    <a href="#s5" title="05 信息层级">05</a><a href="#s6" title="06 流程">06</a>
+    <a href="#s7" title="07 令牌">07</a><a href="#s8" title="08 缩略图">08</a><a href="#s9" title="09 正式界面">09</a>
+  </div>
+  <button class="tbtn" id="th" title="深/浅色"><span data-i="theme"></span></button>
+</header>
+
+<div class="wrap">
+<nav class="toc">
+  <a href="#s1" class="on"><b>01</b> 诊断</a>
+  <a href="#s2"><b>02</b> 设计原则</a>
+  <a href="#s3"><b>03</b> 符号系统</a>
+  <a href="#s4"><b>04</b> 布局</a>
+  <a href="#s5"><b>05</b> 信息层级</a>
+  <a href="#s6"><b>06</b> 交互流程</a>
+  <a href="#s7"><b>07</b> 令牌</a>
+  <a href="#s8"><b>08</b> 缩略图策略</a>
+  <a href="#s9"><b>09</b> 正式界面</a>
+</nav>
+
+<main>
+
+<!-- ══ 01 ══ -->
+<section id="s1">
+  <div class="sechd"><span class="no">01</span><h2>诊断</h2><span class="sub">现有 v3 的 12 个确定问题</span></div>
+  <div class="card">
+    <p class="lead">先认账。下面每条都对应 <code>index.html</code> 里的真实实现，不是泛泛而谈。红色 = 阻塞可用性，橙色 = 拉低效率。</p>
+    <table>
+      <thead><tr><th style="width:34px">#</th><th style="width:150px">问题</th><th>证据 / 后果</th><th style="width:230px">对策</th></tr></thead>
+      <tbody id="diag"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 02 ══ -->
+<section id="s2">
+  <div class="sechd"><span class="no">02</span><h2>设计原则</h2><span class="sub">5 条，冲突时按序号优先级裁决</span></div>
+  <div class="card">
+    <div class="pri" id="prin"></div>
+  </div>
+</section>
+
+<!-- ══ 03 ══ -->
+<section id="s3">
+  <div class="sechd"><span class="no">03</span><h2>符号系统</h2><span class="sub">全站唯一符号表 · 43 枚 · 同一语义不得二次发明</span></div>
+  <div class="card">
+    <p class="lead">这是本方案的核心交付。<b class="k">凡是能被一眼识别的语义，一律用符号承载，文字只做补充与兜底</b>（tooltip / 无障碍 label / 首次引导）。符号统一 24×24 网格、1.7 描边、圆头圆角，与 iOS 同源。</p>
+    <div class="rules">
+      <div class="rule no"><span data-i="no"></span><div><b>禁用 emoji 当图标。</b> v3 用了 🔍 📊 📂 ☰ ▦ ◐ ⧉ ✕ —— 跨平台字形不一致、配色不可控、粗细不一，是"丑"的主要来源。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>符号必须可被颜色接管。</b> 全部 <code>stroke="currentColor"</code>，分类色直接由父级 <code>color</code> 注入。</div></div>
+      <div class="rule no"><span data-i="no"></span><div><b>内容区禁用纯符号。</b> 指标条、卡片指标、列表列头、详情字段 —— 每一处都必须有中文标签。符号负责"快速定位"，文字负责"准确理解"，两者不可互相替代。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>排序器与列头同词同序。</b> 顶栏用「顶点数 / 三角面 / 体积 / 贴图数 / 文件大小」，卡片用「顶点 / 面数 / 体积 / 贴图」，列表列头与顶栏完全一致。</div></div>
+    </div>
+    <div id="icons" style="margin-top:20px"></div>
+  </div>
+</section>
+
+<!-- ══ 04 ══ -->
+<section id="s4">
+  <div class="sechd"><span class="no">04</span><h2>布局</h2><span class="sub">三区 + 常驻指标条 · 详情改为可停靠而非全屏覆盖</span></div>
+  <div class="card">
+    <div class="wf">
+      <div class="wfbar">
+        <span class="ic" style="width:20px;height:20px;color:var(--label3)" data-i="search"></span>
+        <div style="flex:1;height:24px;border-radius:8px;background:var(--fill)"></div>
+        <span class="ic" style="width:18px;height:18px;color:var(--label2)" data-i="grid"></span>
+        <span class="ic" style="width:18px;height:18px;color:var(--label3)" data-i="list"></span>
+        <span class="ic" style="width:18px;height:18px;color:var(--label2)" data-i="theme"></span>
+        <span class="ic" style="width:18px;height:18px;color:var(--label2)" data-i="more"></span>
+      </div>
+      <div class="wfbody">
+        <div class="wfrail">
+          <i class="on" data-i="all"></i><i data-i="game"></i><i data-i="kind"></i>
+          <i data-i="group"></i><i data-i="star"></i><i data-i="dup"></i>
+        </div>
+        <div class="wfmain">
+          <div class="wfmetrics">
+            <span style="display:flex;align-items:center;gap:4px;color:var(--blue);font-weight:600"><span class="ic" style="width:15px;height:15px" data-i="vtx"></span>顶点数</span>
+            <span style="display:flex;align-items:center;gap:4px"><span class="ic" style="width:15px;height:15px" data-i="face"></span>三角面</span>
+            <span style="display:flex;align-items:center;gap:4px"><span class="ic" style="width:15px;height:15px" data-i="bbox"></span>体积</span>
+            <span style="display:flex;align-items:center;gap:4px"><span class="ic" style="width:15px;height:15px" data-i="tex"></span>贴图数</span>
+            <span style="display:flex;align-items:center;gap:4px"><span class="ic" style="width:15px;height:15px" data-i="doc"></span>文件大小</span>
+          </div>
+          <div class="wfcards">
+            <div class="wfcard"><div class="wfth" data-i="cube"></div><div class="wfmeta">
+              <div class="t">GeoCorp_Block_4x4</div>
+              <div class="m"><span><span data-i="vtx"></span>1.2k</span><span><span data-i="face"></span>2.4k</span><span><span data-i="tex"></span>3</span></div>
+            </div></div>
+            <div class="wfcard"><div class="wfth" data-i="cube"></div><div class="wfmeta">
+              <div class="t">Venture_Wheel_Large</div>
+              <div class="m"><span><span data-i="vtx"></span>860</span><span><span data-i="face"></span>1.7k</span><span><span data-i="tex"></span>1</span></div>
+            </div></div>
+            <div class="wfcard"><div class="wfth" data-i="cube"></div><div class="wfmeta">
+              <div class="t">Mech_Torso_Heavy_A</div>
+              <div class="m"><span><span data-i="vtx"></span>4.1k</span><span><span data-i="face"></span>8.9k</span><span><span data-i="tex"></span>5</span></div>
+            </div></div>
+            <div class="wfcard"><div class="wfth" data-i="cube"></div><div class="wfmeta">
+              <div class="t">Prop_Crate_Small</div>
+              <div class="m"><span><span data-i="vtx"></span>312</span><span><span data-i="face"></span>604</span><span><span data-i="tex"></span>0</span></div>
+            </div></div>
+          </div>
+          <div class="wfstat">
+            <span><span class="ic" style="width:12px;height:12px;display:inline-block;vertical-align:-2px" data-i="all"></span> 17,217</span>
+            <span><span class="ic" style="width:12px;height:12px;display:inline-block;vertical-align:-2px" data-i="dup"></span> 14,394 已隐藏</span>
+            <span><span class="ic" style="width:12px;height:12px;display:inline-block;vertical-align:-2px" data-i="tex"></span> 56.7%</span>
+            <span style="flex:1"></span>
+            <span>2.5 GB</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <b><span data-i="all"></span> A 符号轨道 56px</b>
+      <b><span data-i="search"></span> B 顶栏 44px</b>
+      <b><span data-i="vtx"></span> C 指标条 34px（兼排序）</b>
+      <b><span data-i="cube"></span> D 内容区（网格/列表）</b>
+      <b><span data-i="stats"></span> E 状态条 26px</b>
+      <b><span data-i="info"></span> F 详情面板 380px 可停靠</b>
+    </div>
+    <div class="note">关键变化：侧栏从「常驻 260px 全展开筛选树」改为「56px 符号轨道 + 按需浮层」，主区净宽 +200px；详情从全屏 modal 改为<b class="k">推挤式停靠面板</b>，可边看列表边对比，可并排锁两个资产。</div>
+  </div>
+</section>
+
+<!-- ══ 05 ══ -->
+<section id="s5">
+  <div class="sechd"><span class="no">05</span><h2>信息层级</h2><span class="sub">把几何指标从抽屉里搬到卡片上</span></div>
+  <div class="card">
+    <div class="cmp">
+      <div class="cmpcol">
+        <h5><span class="ic" style="width:14px;height:14px" data-i="no"></span> v3 卡片</h5>
+        <div class="demo">
+          <div class="democard">
+            <div class="demoth" data-i="cube"></div>
+            <div class="demobody">
+              <div class="nm">GeoCorp_Block_4x4</div>
+              <div class="badges"><span class="bg" style="background:var(--fill);color:var(--label2)">泰拉科技</span><span class="bg" style="background:rgba(10,132,255,.14);color:#0A84FF">模块</span></div>
+            </div>
+            <div class="oldbody">顶点 · 面数 · 体积 · 贴图<br><span style="color:var(--label3)">→ 全部藏进详情抽屉，要点开才知道</span></div>
+          </div>
+          <div class="note" style="border-color:var(--red)">信息量为零。3 万条资产，用户必须在「列表 → 点开 → 读 → 关闭」之间反复横跳才能判断一个模型重不重。</div>
+        </div>
+      </div>
+      <div class="cmpcol">
+        <h5><span class="ic" style="width:14px;height:14px" data-i="ok"></span> v4 卡片</h5>
+        <div class="demo">
+          <div class="democard">
+            <div class="demoth" data-i="cube"></div>
+            <div class="demobody">
+              <div class="nm">GeoCorp_Block_4x4</div>
+              <div class="badges">
+                <span class="bg" style="background:rgba(52,199,89,.14);color:var(--green)"><span data-i="g-hex"></span>泰拉</span>
+                <span class="bg" style="background:rgba(10,132,255,.14);color:var(--blue)"><span data-i="k-module"></span>模块</span>
+              </div>
+              <div class="mrow">
+                <span><span data-i="vtx"></span><i>顶点</i>1,204</span>
+                <span><span data-i="face"></span><i>面数</i>2,408</span>
+                <span><span data-i="bbox"></span><i>体积</i>0.8</span>
+                <span><span data-i="tex"></span><i>贴图</i>3</span>
+              </div>
+            </div>
+          </div>
+          <div class="note">四项指标常驻卡片，<b class="k">图标 + 中文标签 + 数字</b>三者齐全，字重 500 + 等宽数字，纵向对齐成列 → 可整屏纵向扫视比较。缩略图左上角游戏色徽标、右上角贴图数、重复副本 ⧉ 角标。</div>
+        </div>
+      </div>
+    </div>
+    <div class="rules" style="margin-top:18px">
+      <div class="rule yes"><span data-i="vtx"></span><div><b>△ 顶点 / ◺ 三角面 / ▣ 体积 / ▤ 贴图</b> —— 四项是判断模型成本的第一信息，必须在第一屏可见。</div></div>
+      <div class="rule yes"><span data-i="dim"></span><div><b>▭ 尺寸 XYZ、⌸ 文件大小</b> —— 第二优先级，放进详情面板，hover 卡片时以轻量 popover 补出。</div></div>
+      <div class="rule yes"><span data-i="doc"></span><div><b>路径 / 原名 / 资源目录</b> —— 第三优先级，纯文本，只在详情中出现，默认折叠。</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 06 ══ -->
+<section id="s6">
+  <div class="sechd"><span class="no">06</span><h2>交互流程</h2><span class="sub">「找到并判断一个资产」的最短路径</span></div>
+  <div class="card">
+    <div class="flow">
+      <div class="step"><div class="si"><span data-i="search"></span></div><h6>⌕ 输入</h6><p>顶栏搜索，实时过滤名称 / 原名 / 路径</p></div>
+      <div class="step"><div class="si"><span data-i="kind"></span></div><h6>◈ 收窄</h6><p>轨道点类型符号，浮层面板选具体类目</p></div>
+      <div class="step"><div class="si"><span data-i="vtx"></span></div><h6>△ 排序</h6><p>指标条点符号即按该指标降序，再点升序</p></div>
+      <div class="step"><div class="si"><span data-i="cube"></span></div><h6>⬡ 判断</h6><p>卡片直接读到四项指标，无需打开</p></div>
+      <div class="step"><div class="si"><span data-i="info"></span></div><h6>◉ 停靠</h6><p>点击右侧停靠详情，列表仍可见可继续比</p></div>
+    </div>
+    <div class="note">v3 需要 <b>7 次交互 + 2 次全屏遮挡</b>；v4 <b>4 次交互、0 次遮挡</b>。另补：⌘K 聚焦搜索、⌘1/2 切视图、⌘⇧D 切去重、←→ 在停靠状态下切换上下一个资产、Esc 关闭停靠。</div>
+  </div>
+</section>
+
+<!-- ══ 07 ══ -->
+<section id="s7">
+  <div class="sechd"><span class="no">07</span><h2>令牌</h2><span class="sub">颜色 · 圆角 · 间距 · 玻璃层级</span></div>
+  <div class="card">
+    <div class="tok" id="toks"></div>
+    <h4 style="font-size:12px;font-weight:650;color:var(--label2);margin:20px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--sep)">分类色 → 类型符号</h4>
+    <div class="swatches" id="kinds"></div>
+    <h4 style="font-size:12px;font-weight:650;color:var(--label2);margin:20px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--sep)">游戏色 → 游戏符号</h4>
+    <div class="swatches" id="games"></div>
+  </div>
+</section>
+
+<!-- ══ 08 ══ -->
+<section id="s8">
+  <div class="sechd"><span class="no">08</span><h2>缩略图策略</h2><span class="sub">贴图 ≠ 模型 · 改为离线渲染每个模型自己的几何图</span></div>
+  <div class="card">
+    <p class="lead"><b class="k">这是 v3 最严重的一处错误</b>：缩略图直接拿「贴图文件」当预览，而贴图与模型是多对一关系，于是整屏出现大量一模一样的图。</p>
+    <div class="tok" style="margin-bottom:16px">
+      <div class="tk"><div class="l">有缩略图</div><div class="v">17,917 / 31,611（57%）</div></div>
+      <div class="tk"><div class="l">但不同的图只有</div><div class="v">2,942 张</div></div>
+      <div class="tk"><div class="l">共用别人贴图</div><div class="v">14,975 个（47%）</div></div>
+      <div class="tk"><div class="l">最夸张的一张</div><div class="v">被 502 个模型共用</div></div>
+      <div class="tk"><div class="l">完全无缩略图</div><div class="v">13,694（43%）</div></div>
+      <div class="tk"><div class="l">贴图平均体积</div><div class="v">357 KB → 一屏 40 张 ≈ 14 MB</div></div>
+    </div>
+    <div class="rules">
+      <div class="rule no"><span data-i="no"></span><div><b>旧：贴图当预览。</b> 502 个模型共用同一张 <code>button_0041.png</code>；43% 的模型退化成图标占位，整屏一半图一半图标，视觉断裂。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>新：离线渲染真实几何图。</b> <code>build_thumbs.py</code> 用 numpy 软件光栅化器逐个渲 OBJ —— 正交等轴测投影 + Lambert 明暗 + z-buffer，输出 256×256 透明底 WebP。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>缩略图自带分类语义。</b> 按 kind 上色（模块蓝 / 武器红 / 机甲橙 …），不用读到文字就知道它属于哪一类；透明底同时适配深浅色。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>体积与速度。</b> 约 5 KB/张（原 357 KB），渲染 11 ms/个，全量 31,611 个约 6 分钟，可中断续跑。</div></div>
+      <div class="rule yes"><span data-i="ok"></span><div><b>缺图优雅降级。</b> 空模型 / 解析失败时回退为该分类的符号，而不是破图。</div></div>
+    </div>
+    <div class="note">顺带解决：缩略图不再依赖贴图命中率，因此 13,694 个「无贴图」模型现在也有自己的预览；贴图回归它本来的位置 —— 停靠面板里的贴图列表。</div>
+  </div>
+</section>
+
+<!-- ══ 09 ══ -->
+<section id="s9">
+  <div class="sechd"><span class="no">09</span><h2>正式界面</h2><span class="sub">已落地 · 真实缩略图 · 虚拟滚动 31,611 条</span></div>
+  <div class="card">
+    <p class="lead">下面嵌的就是正式界面 <code>index.html</code>，本方案已全部落地。点轨道图标看筛选浮层，点指标符号排序，点卡片开停靠详情。</p>
+    <iframe class="proto" src="../index.html" loading="lazy" title="正式界面"></iframe>
+    <div class="prorow">
+      <a class="pbtn pri" href="../index.html" target="_blank"><span data-i="cube"></span> 全屏打开资产库</a>
+      <button class="pbtn" id="ask"><span data-i="ok"></span> 认可，落到 index.html</button>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer>资产库 UI 设计方案 v4 · 符号系统 43 枚 · 数据源 catalog_v3.json（31,611 模型）</footer>
+
+<script>
+/* ── 01 诊断 ── */
+const DIAG = [
+ ['符号是 emoji 拼的','🔍📊📂☰▦◐⧉✕ 混用。字形跨平台不一致、颜色不可控、粗细不齐 —— "丑"的直接来源','全部换成自绘 SVG 线性图标'],
+ ['侧栏全展开','游戏/统一分类/阵营/标记/目录 5 组平铺 40+ 行，无优先级、无折叠，首屏读不完','改 56px 符号轨道 + 按需浮层'],
+ ['顶栏控件平铺','侧栏开关/搜索/升降序/视图/密度三档/去重/统计/主题 9 个控件挤一行，主次不分','主操作留 4 个，其余收进 ⋯'],
+ ['卡片无几何信息','顶点/面数/体积全在详情里，列表上只能看到名字','四项指标常驻卡片'],
+ ['详情是全屏 modal','覆盖列表，看完必须关闭才能看下一个，无法比较','改 380px 推挤式停靠面板'],
+ ['密度档位名不副实','132/176/240 只改卡片高度，信息量不变','密度档改为控制指标显示数量'],
+ ['重复副本不可见','14,394 个副本（45%）在列表中与唯一资产长得一样','缩略图左上角 ⧉ 角标 + 轨道可一键隐藏'],
+ ['排序入口太远','要先开下拉选字段，再点升降序两大步','指标符号即排序按钮，一步'],
+ ['筛选结果无反馈','count 挤在顶栏最右边，容易被忽略','底部状态条常驻显示 命中/总量'],
+ ['设置类控件混入主流程','去重开关、统计按钮和搜索并列','统计收进 ⋯，去重进轨道'],
+ ['3D HUD 全文字','实体/线框/贴图/旋转/重置 5 个文字按钮','改符号按钮 + tooltip'],
+ ['无键盘通道','31,611 条全靠鼠标','⌘K 搜索 · ⌘1/2 视图 · ←→ 切换 · Esc 关闭']
+];
+document.getElementById('diag').innerHTML = DIAG.map((r,i)=>
+ `<tr><td class="n">${String(i+1).padStart(2,'0')}</td>
+  <td><span class="ttl">${r[0]}</span><br><span class="tagx ${i<5?'bad':'mid'}">${i<5?'阻塞':'低效'}</span></td>
+  <td class="ev">${r[1]}</td><td class="fx">→ ${r[2]}</td></tr>`).join('');
+
+/* ── 02 原则 ── */
+const PRIN = [
+ ['all','符号限于导航','符号只用于左侧轨道与按钮图标。内容区（指标条、卡片、列头、详情字段）一律「图标 + 文字」，禁止纯符号表达语义。','#007AFF'],
+ ['vtx','信息首要','判断资产成本的第一信息必须在第一屏可见，不许藏进抽屉。','#34C759'],
+ ['dim','渐进披露','默认给最少够用的信息，hover / 选中 / 停靠才展开下一层。','#5856D6'],
+ ['kind','符号唯一','同一语义全站同一符号，禁止为不同位置重新发明一版。','#FF9500'],
+ ['sort','零遮挡对比','任何详情都不许盖住列表。比较是资产库的主任务，不是附属。','#BF5AF2']
+];
+document.getElementById('prin').innerHTML = PRIN.map(p=>
+ `<div class="pc"><div class="si" style="background:${p[3]}" data-i="${p[0]}"></div>
+  <h3>${p[1]}</h3><p>${p[2]}</p></div>`).join('');
+
+/* ── 03 符号目录 ── */
+const DOC = [
+ ['导航 / 结构', [
+   ['all','全部','轨道首项 · 空态'],
+   ['game','游戏','轨道 · 徽标'],
+   ['kind','统一分类','轨道 · 徽标'],
+   ['group','分组 / 目录','轨道 · 卡片副信息'],
+   ['star','收藏','轨道 · 卡片角标'],
+   ['dup','重复副本','轨道 · 卡片角标 · 状态条']
+ ]],
+ ['工具', [
+   ['search','搜索','顶栏 · ⌘K'],
+   ['sort','排序','指标条 · 列表列头'],
+   ['grid','网格视图','顶栏分段 · ⌘1'],
+   ['list','列表视图','顶栏分段 · ⌘2'],
+   ['density','信息密度','⋯ 菜单'],
+   ['filter','筛选','轨道展开态'],
+   ['theme','深/浅色','顶栏'],
+   ['more','更多','顶栏 · 收纳次级'],
+   ['reset','重置筛选','筛选浮层底部'],
+   ['stats','统计总览','⋯ 菜单'],
+   ['close','关闭','停靠面板 · 浮层'],
+   ['chev','展开 / 下一级','列表 · 面包屑']
+ ]],
+ ['几何指标', [
+   ['vtx','顶点数','卡片 · 列表列 · 详情'],
+   ['face','三角面数','卡片 · 列表列 · 详情'],
+   ['bbox','体积（包围盒）','卡片 · 列表列 · 详情'],
+   ['dim','尺寸 X×Y×Z','hover popover · 详情'],
+   ['tex','贴图张数','卡片 · 列表列 · 详情'],
+   ['doc','文件大小','详情 · 状态条']
+ ]],
+ ['状态', [
+   ['ok','已关联贴图','卡片角标 · 详情'],
+   ['no','无贴图','卡片角标 · 详情'],
+   ['warn','需要注意（重复 / 超限）','角标 · 详情行'],
+   ['sync','加载中 / 解析中','3D 视口 · 卡片占位']
+ ]],
+ ['操作', [
+   ['cube','3D 预览','卡片 hover · 详情'],
+   ['dl','下载 OBJ','详情操作条'],
+   ['copy','复制路径 / 信息','详情操作条'],
+   ['reveal','在资源管理器中显示','详情操作条'],
+   ['info','详情','卡片 · 键盘 I'],
+   ['pin','锁定对比','停靠面板 · ⌘P']
+ ]],
+ ['统一分类 kind', [
+   ['k-module','模块 / 方块'],['k-weapon','武器'],['k-mech','机甲'],
+   ['k-mobile','载具 / 移动部件'],['k-struct','建筑 / 结构'],['k-terrain','地形'],
+   ['k-foliage','植被'],['k-prop','道具 / 箱体'],['k-drone','无人机'],
+   ['k-vfx','特效'],['k-ui','界面元素'],['k-collider','碰撞体'],['k-misc','其他']
+ ]],
+ ['游戏', [
+   ['g-hex','TerraTech 泰拉科技'],['g-shield','War Robots 战争机器人'],['g-gear','Iron Saga 重装上阵']
+ ]]
+];
+document.getElementById('icons').innerHTML = DOC.map(g=>
+ `<div class="icgroup"><h4><span class="ic" style="width:15px;height:15px" data-i="${g[1][0][0]}"></span> ${g[0]} · ${g[1].length}</h4>
+  <div class="icgrid">${g[1].map(it=>
+    `<div class="iccell"><div class="sw" data-i="${it[0]}"></div>
+     <div class="tx"><div class="nm">${it[1]}</div><div class="ky">${it[0]}</div>${it[2]?`<div class="ky" style="color:var(--label2);margin-top:2px">${it[2]}</div>`:''}</div></div>`
+  ).join('')}</div></div>`).join('');
+
+/* ── 07 令牌 ── */
+const TOKS = [
+ ['圆角','--r1 10 · --r2 14 · --r3 20 · --r4 28'],
+ ['间距','4 / 8 / 12 / 16 / 22 / 26'],
+ ['字号','11 指标 · 12.5 正文 · 14 标题 · 19 区标题'],
+ ['符号尺寸','14 行内 · 16 按钮 · 20 轨道 · 34 目录格'],
+ ['玻璃 L1 面板','blur 30 saturate 180%'],
+ ['玻璃 L2 卡片','blur 20 saturate 160%'],
+ ['玻璃 L3 浮层','blur 40 saturate 200% + 强投影'],
+ ['描边','1.7px · round cap / join'],
+ ['分隔线','rgba(60,60,67,.11)'],
+ ['数字','tabular-nums · 字重 500']
+];
+document.getElementById('toks').innerHTML = TOKS.map(t=>
+ `<div class="tk"><div class="l">${t[0]}</div><div class="v">${t[1]}</div></div>`).join('');
+
+const KINDS = [
+ ['模块','k-module','#0A84FF'],['武器','k-weapon','#FF453A'],['机甲','k-mech','#FF9F0A'],
+ ['载具','k-mobile','#64D2FF'],['建筑','k-struct','#5E5CE6'],['地形','k-terrain','#AC8E68'],
+ ['植被','k-foliage','#30D158'],['道具','k-prop','#FF375F'],['无人机','k-drone','#63E6E2'],
+ ['特效','k-vfx','#FFD60A'],['界面','k-ui','#8E8E93'],['碰撞','k-collider','#636366'],['其他','k-misc','#98989D']
+];
+document.getElementById('kinds').innerHTML = KINDS.map(k=>
+ `<div class="sw"><div class="c" style="background:${k[2]};display:grid;place-items:center;color:#fff;font-size:20px" data-i="${k[1]}"></div>
+  <div class="t">${k[0]}<br>${k[2]}</div></div>`).join('');
+
+const GAMES = [
+ ['泰拉科技','g-hex','#34C759'],['战争机器人','g-shield','#FF9F0A'],['重装上阵','g-gear','#BF5AF2']
+];
+document.getElementById('games').innerHTML = GAMES.map(k=>
+ `<div class="sw"><div class="c" style="background:${k[2]};display:grid;place-items:center;color:#fff;font-size:20px" data-i="${k[1]}"></div>
+  <div class="t">${k[0]}<br>${k[2]}</div></div>`).join('');
+
+/* ── 渲染所有符号 ── */
+PAINT_ICONS();
+
+/* ── 主题 ── */
+document.getElementById('th').onclick = ()=>{
+  const d = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = d;
+  try{ document.querySelector('iframe.proto').contentWindow.postMessage({theme:d},'*'); }catch(e){}
+};
+document.getElementById('ask').onclick = ()=>{
+  const t = document.getElementById('ask');
+  t.innerHTML = '<span data-i="ok"></span> 已记录 —— 下一步改造 index.html'; PAINT_ICONS(t);
+  t.style.background = 'var(--green)'; t.style.borderColor = 'var(--green)'; t.style.color = '#fff';
+};
+
+/* ── TOC 高亮 ── */
+const io = new IntersectionObserver(es=>{
+  es.forEach(e=>{ if(e.isIntersecting){
+    document.querySelectorAll('nav.toc a').forEach(a=>a.classList.toggle('on', a.getAttribute('href')==='#'+e.target.id));
+  }});
+},{rootMargin:'-80px 0px -70% 0px'});
+document.querySelectorAll('section').forEach(s=>io.observe(s));
+</script>
+</body>
+</html>

@@ -1,0 +1,41 @@
+# ── 上游游戏资产：只读输入，不入仓 ───────────────────────────
+# models/ 是三款游戏导出的原始模型（约 2.5 GB / 31,611 个 OBJ），
+# 版权归各游戏厂商所有，仓库不承载此类内容。
+models/
+res/
+
+# ── 派生数据：由脚本就地生成，不入仓 ─────────────────────────
+# catalog_v3.json 由 build_catalog_v3.py 扫描 models/ 生成（约 13 MB）
+catalog_v3.json
+catalog_v3.json.gz
+# _thumbs/ 由 build_thumbs.py 离屏渲染生成（31,396 张 WebP / 约 156 MB）
+_thumbs/
+_res/geom_cache.json
+_res/catalog.json
+_res/*.gz
+_res/run_server.py
+
+# ── 运行期产物 ───────────────────────────────────────────────
+_shots/
+*.log
+*.tmp
+.tmp/
+
+# ── 语言/工具链 ──────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+venv/
+.idea/
+.vscode/
+Thumbs.db
+desktop.ini
+
+# ── 旧版单文件查看器（7.8 MB，内嵌 three.js，已被 index.html 取代）──
+viewer.html
+index.original.html
+_diag.txt
+_t.html
