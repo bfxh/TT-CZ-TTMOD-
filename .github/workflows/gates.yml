@@ -64,15 +64,26 @@ jobs:
       - name: 安装静态门工具（钉版本）
         run: pip install --disable-pip-version-check "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}"
 
-      - name: 取门禁工具链（固定提交，判据可复现）
+      - name: 取门禁工具链并构建 rx-scan 引擎（固定提交）
         env:
           RX_SHA: 2cae4c316be161912374eb4db81a26efdcad68c4
         run: |
+          set -euo pipefail
           RX_DIR="${RUNNER_TEMP}/unified-rx-mcp"
           git clone --quiet https://github.com/bfxh/unified-rx-mcp.git "${RX_DIR}"
           git -C "${RX_DIR}" checkout --quiet "${RX_SHA}"
-          echo "RX_DIR=${RX_DIR}" >> "${GITHUB_ENV}"
           echo "工具链提交：$(git -C "${RX_DIR}" rev-parse HEAD)"
+
+          # 重复代码门靠 rx-scan 引擎；缺引擎时该门按设计「不静默判绿」直接红，
+          # 所以这里真把它编出来（零依赖 Rust，edition 2024 需 rustc ≥1.85）。
+          rustup default stable >/dev/null 2>&1 || true
+          rustc --version
+          cargo build --quiet --release --bin rx-scan --manifest-path "${RX_DIR}/rust/Cargo.toml"
+          test -x "${RX_DIR}/rust/target/release/rx-scan"
+          echo "rx-scan：$(ls -l "${RX_DIR}/rust/target/release/rx-scan" | awk '{print $5" B"}')"
+
+          echo "RX_DIR=${RX_DIR}" >> "${GITHUB_ENV}"
+          echo "UNIFIED_RX_RS_EXE=${RX_DIR}/rust/target/release/rx-scan" >> "${GITHUB_ENV}"
 
       - name: 静态门（ruff 逐规则棘轮，只准减）
         run: python "${RX_DIR}/scripts/lint_gate.py" --root .
