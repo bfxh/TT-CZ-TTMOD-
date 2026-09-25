@@ -33,6 +33,35 @@ setTimeout(function(){
     }
   });
   out.push('图标 <use> '+tot+'，失效 '+bad.length+(bad.length?' → '+bad.slice(0,6).join(','):''));
+  // 图标名写错时 SVGICON 返回空串 ⇒ 占位 span 被清空，一个 <use> 都不产生，
+  // 上面那条「use 失效」检查抓不到这类静默消失，必须单独查
+  var holes=[];
+  document.querySelectorAll('[data-i]').forEach(function(e){
+    if(!e.querySelector('svg')) holes.push(e.dataset.i+'@'+(e.parentNode.className||e.parentNode.tagName));
+  });
+  out.push('图标占位 '+document.querySelectorAll('[data-i]').length+' 个 · 画成空的 '+holes.length+
+    (holes.length?' → '+holes.slice(0,6).join(','):''));
+  // 会影响文字清晰度的样式（合成层/重采样源头）
+  var bad=[];
+  ['.ov','.ovp','.pane-l .pane-in','.pane-r .pane-in'].forEach(function(sel){
+    var e=document.querySelector(sel); if(!e) return;
+    var c=getComputedStyle(e);
+    if(c.backdropFilter && c.backdropFilter!=='none') bad.push(sel+' backdrop-filter');
+    if(c.willChange && c.willChange!=='auto') bad.push(sel+' will-change='+c.willChange);
+    if(c.filter && c.filter!=='none') bad.push(sel+' filter');
+  });
+  var anim=getComputedStyle(document.querySelector('.ovp')).animationName;
+  var kf=(document.styleSheets.length && (function(){
+    for(var i=0;i<document.styleSheets.length;i++){
+      var rs; try{ rs=document.styleSheets[i].cssRules; }catch(e){ continue; }
+      for(var j=0;j<rs.length;j++){
+        if(rs[j].type===7 && rs[j].name===anim) return rs[j].cssText;
+      }
+    }
+    return '';
+  })()) || '';
+  out.push('清晰度隐患：'+(bad.length?bad.join(' / '):'无')+
+    ' · 入场动画 ['+anim+'] '+(/scale/.test(kf)?'含 scale ← 会整体重采样':'只动 opacity'));
   out.push('头部：'+[].map.call(document.querySelectorAll('.top .seg button,.top .tbtn,.top .ib'),
     function(b){return b.textContent.trim()||b.title}).join(' / '));
   out.push('没有排序条（.mbar 应为 0）：'+document.querySelectorAll('.mbar').length+

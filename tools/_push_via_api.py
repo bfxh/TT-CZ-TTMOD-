@@ -51,6 +51,8 @@ def main() -> int:
     ap.add_argument("--branch", default="main")
     ap.add_argument("--message-file", required=True)
     ap.add_argument("--root", default=".")
+    ap.add_argument("--force", action="store_true", help="允许非快进更新 ref（改写末次提交时用）")
+    ap.add_argument("--parents", default="", help="逗号分隔的父提交 sha；默认取远端当前 HEAD")
     a = ap.parse_args()
     root = Path(a.root).resolve()
     msg = Path(a.message_file).read_text(encoding="utf-8")
@@ -91,10 +93,12 @@ def main() -> int:
 
     new_tree = gh("-X", "POST", "/repos/%s/git/trees" % a.repo,
                   body={"base_tree": base_tree, "tree": tree})["sha"]
+    # 默认以远端当前 HEAD 为父提交；改写末次提交（如修正提交信息）时用 --parents 指定祖父
+    parents = [p.strip() for p in a.parents.split(",") if p.strip()] if a.parents else [head_sha]
     commit = gh("-X", "POST", "/repos/%s/git/commits" % a.repo,
-                body={"message": msg, "tree": new_tree, "parents": [head_sha]})["sha"]
+                body={"message": msg, "tree": new_tree, "parents": parents})["sha"]
     gh("-X", "PATCH", "/repos/%s/git/refs/heads/%s" % (a.repo, a.branch),
-       body={"sha": commit, "force": False})
+       body={"sha": commit, "force": bool(a.force)})
     print("已推送 commit %s → %s/%s" % (commit[:7], a.repo, a.branch))
     print("https://github.com/%s/commit/%s" % (a.repo, commit))
     return 0

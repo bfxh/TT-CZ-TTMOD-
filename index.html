@@ -44,8 +44,10 @@
 html,body{height:100%}
 body{font:400 13px/1.45 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
   color:var(--text);background:var(--bg);overflow:hidden;-webkit-font-smoothing:antialiased}
+/* 描边 1.9：图标最小只画到 13px，1.9/24 的线在合成层重采样后仍能留住；
+   1.7 在小尺寸 + 非整数缩放下会淡到看不见 */
 .ic{width:1em;height:1em;display:block;flex:0 0 auto;fill:none;stroke:currentColor;
-  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;overflow:visible}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 input{font:inherit;color:inherit;background:none;border:0;outline:0}
 ::-webkit-scrollbar{width:11px;height:11px}
@@ -257,15 +259,23 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 
 /* ══════════════ 详情总览：居中大面板（占屏 92%×92%）══════════════
    不在右边停靠。点卡片 → 屏幕正中弹出一块大面板（四周留 4% 露出下面的网格），
-   3D 模型在正中央、可拖动旋转，信息板分列两侧并**向内斜切**成 3D 形态。 */
+   3D 模型在正中央、可拖动旋转，信息板分列两侧并**向内斜切**成 3D 形态。
+
+   ⚠ 这一块有三条「别动」的约定，都是为了文字清晰：
+   ① 遮罩层**不许用 backdrop-filter** —— 它会把整棵子树塞进 backdrop root 按低分辨率栅格化，
+      细笔画图标（1.7px）直接糊掉甚至消失；
+   ② 入场动画**只准动 opacity**，不许 scale —— 缩放进场会让整个面板按 98.5% 栅格化后
+      再被放大回去，全屏文字与细图标统一模糊；
+   ③ 斜切层**不许写 will-change: transform** —— 常驻合成层会锁住栅格化尺寸，
+      静止时也一直是糊的。 */
 .ov{position:fixed;inset:0;z-index:80;display:none;padding:4vh 4vw;
-  background:rgba(18,18,22,.44);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
-[data-theme="dark"] .ov{background:rgba(0,0,0,.58)}
+  background:rgba(18,18,22,.52)}
+[data-theme="dark"] .ov{background:rgba(0,0,0,.64)}
 .ov.on{display:grid;place-items:center}
 .ovp{width:100%;height:100%;display:flex;flex-direction:column;background:var(--bg);
   border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;
-  box-shadow:0 30px 80px rgba(0,0,0,.4);animation:ovin .18s ease-out}
-@keyframes ovin{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
+  box-shadow:0 30px 80px rgba(0,0,0,.4);animation:ovin .16s ease-out}
+@keyframes ovin{from{opacity:0}to{opacity:1}}
 
 .ov-top{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:9px;padding:0 10px 0 14px;
   border-bottom:1px solid var(--line);background:var(--panel)}
@@ -280,10 +290,11 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   position:relative;z-index:2}
 .pane-l{border-right:1px solid var(--line);box-shadow:inset -18px 0 26px -22px rgba(0,0,0,.55)}
 .pane-r{border-left:1px solid var(--line);box-shadow:inset 18px 0 26px -22px rgba(0,0,0,.55)}
-.pane-in{padding-bottom:18px;will-change:transform}
-/* 转轴压在内缘：外缘退远、内缘钉在视口边缘 ⇒ 整块板向内「包」住模型 */
-.pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1500px) rotateY(-9deg) rotateX(1.2deg)}
-.pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1500px) rotateY(9deg) rotateX(1.2deg)}
+.pane-in{padding-bottom:18px}
+/* 转轴压在内缘：外缘退远、内缘钉在面板边缘 ⇒ 整块板向内「包」住模型。
+   只做 rotateY（不加 rotateX）——竖向重采样对文字最狠，且这里不需要俯角。 */
+.pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1600px) rotateY(-7deg)}
+.pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1600px) rotateY(7deg)}
 
 /* 中间舞台：贴图排进流、不压画布；画布独占剩下的整块 */
 .stage3{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
@@ -339,8 +350,8 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 
 @media(max-width:1280px){
   .pane{min-width:238px}
-  .pane-l .pane-in{transform:perspective(1900px) rotateY(-5deg)}
-  .pane-r .pane-in{transform:perspective(1900px) rotateY(5deg)}
+  .pane-l .pane-in{transform:perspective(1600px) rotateY(-5deg)}
+  .pane-r .pane-in{transform:perspective(1600px) rotateY(5deg)}
 }
 @media(max-width:1024px){
   .pane{min-width:0;flex:0 0 30%}
