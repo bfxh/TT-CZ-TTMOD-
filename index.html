@@ -87,48 +87,70 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .fly footer button:hover{background:var(--line-2)}
 .fly footer button .ic{width:13px;height:13px}
 
-/* ══════════════ 主区 ══════════════ */
+/* ══════════════ 主区：单条 52px 头部 ══════════════
+   原来是「44 顶栏 + 32 排序条」两条堆叠，76px 只干了两件事：
+   现在合成一条，排序收进菜单，省下的纵向空间全给内容。 */
 .main{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg)}
-.top{height:44px;flex:0 0 44px;display:flex;align-items:center;gap:6px;padding:0 10px;
+.top{height:52px;flex:0 0 52px;display:flex;align-items:center;gap:8px;padding:0 12px;
   border-bottom:1px solid var(--line);background:var(--panel);overflow:hidden}
-.sbox{flex:1;min-width:170px;max-width:420px;height:28px;border-radius:5px;background:var(--panel-2);
-  border:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:0 8px}
+.brand{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.brand .ic{width:18px;height:18px;color:var(--accent)}
+.brand b{font-size:13px;font-weight:650}
+.brand .sep{width:1px;height:20px;background:var(--line);margin:0 4px}
+.top .sp{flex:1;min-width:4px}
+.sbox{flex:1;min-width:180px;max-width:480px;height:32px;border-radius:6px;background:var(--panel-2);
+  border:1px solid var(--line);display:flex;align-items:center;gap:6px;padding:0 9px}
 .sbox:focus-within{border-color:var(--accent);background:var(--panel)}
 .sbox .ic{width:14px;height:14px;color:var(--text-3)}
 .sbox input{flex:1;font-size:12.5px;min-width:0}
 .sbox input::placeholder{color:var(--text-3)}
 .sbox kbd{font:400 10px var(--mono);color:var(--text-3);border:1px solid var(--line);
   border-radius:3px;padding:1px 3px}
-.seg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;flex:0 0 auto}
-.seg button{height:28px;display:flex;align-items:center;gap:5px;padding:0 9px;font-size:12.5px;
+.seg{display:flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;flex:0 0 auto}
+.seg button{height:30px;display:flex;align-items:center;gap:5px;padding:0 10px;font-size:12.5px;
   color:var(--text-2);background:var(--panel);border-right:1px solid var(--line)}
 .seg button:last-child{border-right:0}
 .seg button .ic{width:13px;height:13px}
 .seg button:hover{background:var(--panel-2)}
 .seg button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
-.tbtn{display:flex;align-items:center;gap:5px;height:28px;padding:0 9px;border-radius:5px;
+.tbtn{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:6px;
   border:1px solid var(--line);background:var(--panel);font-size:12.5px;color:var(--text-2);flex:0 0 auto}
 .tbtn .ic{width:14px;height:14px}
+.tbtn .caret{font:600 9px/1 var(--mono);color:var(--text-3);margin-left:1px}
 .tbtn:hover{background:var(--panel-2)}
 .tbtn.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent)}
-.ib{width:28px;height:28px;border-radius:5px;border:1px solid var(--line);background:var(--panel);
+.ib{width:30px;height:30px;border-radius:6px;border:1px solid var(--line);background:var(--panel);
   display:grid;place-items:center;font-size:16px;color:var(--text-2);flex:0 0 auto}
 .ib:hover{background:var(--panel-2);color:var(--text)}
 .ib.on{color:var(--accent)}
 
-/* ══════════════ 排序条 ══════════════ */
-.mbar{height:32px;flex:0 0 32px;display:flex;align-items:center;gap:2px;padding:0 10px;
-  border-bottom:1px solid var(--line);background:var(--panel-2);overflow:hidden}
-.mbar .lead{font-size:11.5px;color:var(--text-3);margin-right:6px}
-.mb{display:flex;align-items:center;gap:4px;height:22px;padding:0 8px;border-radius:4px;
-  font-size:11.5px;color:var(--text-2)}
-.mb .ic{width:13px;height:13px}
-.mb:hover{background:var(--line-2);color:var(--text)}
-.mb.on{background:var(--accent);color:#fff}
-.mb.on::after{content:"↓";font:600 9px/1 var(--mono);margin-left:1px}
-.mb.on.asc::after{content:"↑"}
-.mbar .sp{flex:1}
-.mbar .cnt{font-size:11.5px;color:var(--text-2);font-family:var(--mono);white-space:nowrap}
+/* 活动筛选条：只在确有筛选时出现，随时看得到「现在被什么筛着」并能一键摘掉 */
+.fbar{display:none;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--line);
+  background:var(--panel-2);overflow-x:auto;white-space:nowrap}
+.fbar.on{display:flex}
+.fbar .flab{font-size:11px;color:var(--text-3);flex:0 0 auto}
+.fchip{display:inline-flex;align-items:center;gap:5px;height:25px;padding:0 4px 0 9px;border-radius:6px;
+  border:1px solid var(--line);background:var(--panel);font-size:11.5px;color:var(--text-2);flex:0 0 auto}
+.fchip .d{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
+.fchip .x{width:17px;height:17px;border-radius:4px;display:grid;place-items:center;font-size:12px;
+  color:var(--text-3);line-height:1}
+.fchip .x:hover{background:var(--line-2);color:var(--text)}
+.fbar .clr{height:25px;padding:0 9px;border-radius:6px;border:1px solid var(--line);background:var(--panel);
+  font-size:11.5px;color:var(--text-3);flex:0 0 auto}
+.fbar .clr:hover{color:var(--text);background:var(--panel)}
+
+/* 排序菜单（替代原来的 32px 排序条） */
+.menu{position:absolute;z-index:60;background:var(--panel);border:1px solid var(--line);
+  border-radius:var(--r);box-shadow:0 12px 30px rgba(0,0,0,.16);padding:5px;display:none;min-width:158px}
+.menu.on{display:block}
+.menu button{display:flex;align-items:center;gap:8px;width:100%;padding:7px 9px;border-radius:5px;
+  font-size:12.5px;color:var(--text-2);text-align:left}
+.menu button .ic{width:14px;height:14px;color:var(--text-3)}
+.menu button:hover{background:var(--panel-2);color:var(--text)}
+.menu button.on{background:var(--accent-soft);color:var(--accent);font-weight:600}
+.menu button.on .ic{color:var(--accent)}
+.menu button .k{margin-left:auto;font:400 10.5px var(--mono);color:var(--text-3)}
+.menu .msep{height:1px;background:var(--line);margin:4px 2px}
 
 /* ══════════════ 内容区 ══════════════ */
 .stage{flex:1;overflow:auto;overflow-x:hidden}
@@ -200,24 +222,13 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .sbar b{font-weight:600;color:var(--text-2);font-family:var(--mono)}
 .sbar .sp{flex:1}
 
-/* ══════════════ 右侧详情 ══════════════ */
-.dock{width:0;flex:0 0 0;overflow:hidden;border-left:1px solid var(--line);background:var(--panel)}
-.dock.on{width:392px;flex:0 0 392px}
-.dwrap{width:392px;display:flex;flex-direction:column;height:100%;overflow:auto}
-.dtop{display:flex;align-items:center;gap:4px;padding:8px 10px;border-bottom:1px solid var(--line);
-  position:sticky;top:0;background:var(--panel);z-index:3}
-.dtop .t{flex:1;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;min-width:0}
-.prev{height:212px;background:var(--panel-2);border-bottom:1px solid var(--line);display:grid;
-  place-items:center;font-size:44px;color:var(--text-3);position:relative;overflow:hidden;flex:0 0 auto}
-.prev>img{width:100%;height:100%;object-fit:contain}
-.prev canvas{display:block}
-
+/* 详情字段样式（供居中大面板使用） */
 .sec{border-bottom:1px solid var(--line)}
-.sec>h6{font-size:11px;font-weight:600;color:var(--text-3);padding:8px 12px 6px;display:flex;
+.sec:last-child{border-bottom:0}
+.sec>h6{font-size:11px;font-weight:600;color:var(--text-3);padding:9px 12px 6px;display:flex;
   align-items:center;gap:6px}
 .sec>h6 .c{margin-left:auto;font-weight:400;font-family:var(--mono)}
-.r{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;padding:6px 12px;font-size:12px;
+.r{display:grid;grid-template-columns:74px minmax(0,1fr);gap:10px;padding:6px 12px;font-size:12px;
   border-top:1px solid var(--line-2)}
 .r .k{color:var(--text-3)}
 .r .v{text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -244,30 +255,39 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .acts button:hover{background:var(--panel-2)}
 .acts button.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 
-/* ══════════════ 居中查看器：两侧斜切信息板 + 中间 3D ══════════════
-   信息合计占半屏（两侧各 25%），中间留给模型。
-   两侧面板以内缘为转轴做透视斜切，内缘正对模型，形成浅「V」包住视口。 */
-.sheet{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;background:var(--bg)}
-.sheet.on{display:flex}
-.sheet-top{height:44px;flex:0 0 44px;display:flex;align-items:center;gap:8px;padding:0 12px;
-  border-bottom:1px solid var(--line);background:var(--panel)}
-.sheet-top .t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sheet-top .sub{font-size:11px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
-.sheet-top .nav{margin-left:auto;display:flex;gap:4px;flex:0 0 auto}
+/* ══════════════ 详情总览：居中大面板（占屏 92%×92%）══════════════
+   不在右边停靠。点卡片 → 屏幕正中弹出一块大面板（四周留 4% 露出下面的网格），
+   3D 模型在正中央、可拖动旋转，信息板分列两侧并**向内斜切**成 3D 形态。 */
+.ov{position:fixed;inset:0;z-index:80;display:none;padding:4vh 4vw;
+  background:rgba(18,18,22,.44);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+[data-theme="dark"] .ov{background:rgba(0,0,0,.58)}
+.ov.on{display:grid;place-items:center}
+.ovp{width:100%;height:100%;display:flex;flex-direction:column;background:var(--bg);
+  border:1px solid var(--line);border-radius:10px;overflow:hidden;position:relative;
+  box-shadow:0 30px 80px rgba(0,0,0,.4);animation:ovin .18s ease-out}
+@keyframes ovin{from{opacity:0;transform:scale(.985)}to{opacity:1;transform:none}}
 
-.sheet-body{flex:1;min-height:0;display:flex;background:var(--panel-2)}
-.pane{width:25%;flex:0 0 25%;min-width:270px;max-width:560px;overflow:auto;background:var(--panel);
+.ov-top{height:48px;flex:0 0 48px;display:flex;align-items:center;gap:9px;padding:0 10px 0 14px;
+  border-bottom:1px solid var(--line);background:var(--panel)}
+.ov-top .t{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ov-top .sub{font-size:11px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.ov-top .nav{margin-left:auto;display:flex;gap:4px;flex:0 0 auto}
+.ov-top .vsep{width:1px;height:20px;background:var(--line);margin:0 2px;flex:0 0 auto}
+
+.ov-body{flex:1;min-height:0;display:flex;background:var(--panel-2)}
+.pane{width:22%;flex:0 0 22%;min-width:228px;max-width:430px;overflow:auto;background:var(--panel);
   position:relative;z-index:2}
-.pane-l{border-right:1px solid var(--line);box-shadow:inset -16px 0 22px -20px rgba(0,0,0,.5)}
-.pane-r{border-left:1px solid var(--line);box-shadow:inset 16px 0 22px -20px rgba(0,0,0,.5)}
-.pane-in{padding-bottom:16px;will-change:transform}
-/* 转轴压在内缘：外缘退远、内缘贴在视口边缘 ⇒ 内缘正对模型 */
-.pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1900px) rotateY(-7deg)}
-.pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1900px) rotateY(7deg)}
+.pane-l{border-right:1px solid var(--line);box-shadow:inset -18px 0 26px -22px rgba(0,0,0,.55)}
+.pane-r{border-left:1px solid var(--line);box-shadow:inset 18px 0 26px -22px rgba(0,0,0,.55)}
+.pane-in{padding-bottom:18px;will-change:transform}
+/* 转轴压在内缘：外缘退远、内缘钉在视口边缘 ⇒ 整块板向内「包」住模型 */
+.pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1500px) rotateY(-9deg) rotateX(1.2deg)}
+.pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1500px) rotateY(9deg) rotateX(1.2deg)}
 
 .stage3{flex:1;min-width:0;position:relative;overflow:hidden;display:grid;place-items:center}
 .stage3 canvas{display:block}
+.stage3 .hint{position:absolute;right:12px;top:14px;font-size:11px;color:var(--text-3);z-index:2}
 
 /* 中心上方：贴图排 —— 可点选覆盖，右侧带平铺与亮度 */
 .texbar{position:absolute;left:12px;right:12px;top:10px;z-index:5;display:none;align-items:center;gap:6px;
@@ -368,11 +388,16 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 
   <div class="main">
     <div class="top">
+      <div class="brand">
+        <span data-i="cube"></span><b>资产库</b>
+      </div>
+      <span class="sep" style="width:1px;height:20px;background:var(--line);flex:0 0 auto"></span>
       <div class="sbox">
         <span data-i="search"></span>
         <input id="q" placeholder="搜索名称 / 资源原名 / 路径" autocomplete="off">
         <kbd>Ctrl K</kbd>
       </div>
+      <div class="sp"></div>
       <div class="seg" id="view">
         <button data-v="grid" class="on"><span data-i="grid"></span>网格</button>
         <button data-v="list"><span data-i="list"></span>列表</button>
@@ -382,20 +407,16 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
         <button data-d="1" class="on">中</button>
         <button data-d="2">大</button>
       </div>
-      <button class="tbtn" id="btnDup"><span data-i="dup"></span>隐藏副本</button>
-      <button class="tbtn" id="btnStats"><span data-i="stats"></span>统计</button>
+      <button class="tbtn" id="btnSort" title="排序方式">
+        <span data-i="sort"></span><span id="sortLab">面数</span>
+        <span class="caret" id="sortDir">↓</span>
+      </button>
+      <button class="tbtn" id="btnDup" title="隐藏 / 显示重复副本"><span data-i="dup"></span>副本</button>
+      <button class="tbtn" id="btnStats" title="统计总览"><span data-i="stats"></span>统计</button>
       <button class="ib" id="th" data-i="theme" title="深色 / 浅色"></button>
     </div>
 
-    <div class="mbar" id="mbar">
-      <span class="lead">排序</span>
-      <button class="mb" data-s="fa" title="按三角面数排序"><span data-i="face"></span>面数</button>
-      <button class="mb" data-s="v"  title="按顶点数排序"><span data-i="vtx"></span>顶点</button>
-      <button class="mb" data-s="tn" title="按贴图张数排序"><span data-i="tex"></span>贴图</button>
-      <button class="mb" data-s="s"  title="按文件大小排序"><span data-i="doc"></span>大小</button>
-      <div class="sp"></div>
-      <div class="cnt" id="cnt"></div>
-    </div>
+    <div class="fbar" id="fbar"></div>
 
     <div class="lhead" id="lhead"></div>
 
@@ -409,92 +430,62 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 
     <div class="sbar" id="sbar"></div>
   </div>
-
-  <aside class="dock" id="dock">
-    <div class="dwrap">
-      <div class="dtop">
-        <button class="ib" id="dPrev" data-i="chev" style="transform:rotate(180deg)" title="上一个（←）"></button>
-        <button class="ib" id="dNext" data-i="chev" title="下一个（→）"></button>
-        <div class="t" id="dT">—</div>
-        <button class="ib" id="dFav" data-i="star" title="收藏"></button>
-        <button class="ib" id="d3d" data-i="cube" title="居中查看（Enter）"></button>
-        <button class="ib" id="dClose" data-i="close" title="关闭（Esc）"></button>
-      </div>
-
-      <div class="prev" id="dPrev2"></div>
-
-      <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
-      <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
-      <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
-      <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
-      <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
-
-      <div class="acts">
-        <button class="pri" id="aOpen"><span data-i="reveal"></span>打开文件位置</button>
-        <div class="row2">
-          <button id="aDl"><span data-i="dl"></span>下载 OBJ</button>
-          <button id="a3d"><span data-i="cube"></span>居中查看</button>
-        </div>
-        <div class="row2">
-          <button id="aCopyPath"><span data-i="copy"></span>复制路径</button>
-          <button id="aCopyInfo"><span data-i="copy"></span>复制信息</button>
-        </div>
-      </div>
-    </div>
-  </aside>
 </div>
 
-<div class="sheet" id="sheet">
-  <div class="sheet-top">
-    <div class="t" id="shT">—</div>
-    <div class="sub" id="shS"></div>
-    <div class="nav">
-      <button class="ib" id="shPrev" data-i="chev" style="transform:rotate(180deg)" title="上一个（←）"></button>
-      <button class="ib" id="shNext" data-i="chev" title="下一个（→）"></button>
-      <button class="ib" id="shFav" data-i="star" title="收藏"></button>
-      <button class="ib" id="shClose" data-i="close" title="关闭（Esc）"></button>
-    </div>
-  </div>
-
-  <div class="sheet-body">
-    <aside class="pane pane-l"><div class="pane-in">
-      <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
-      <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
-      <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
-    </div></aside>
-
-    <div class="stage3" id="shview">
-      <div class="texbar" id="texbar"></div>
-      <div class="hud" id="shhud">
-        <div class="vseg">
-          <button class="vbtn on" data-m="solid">实体</button>
-          <button class="vbtn" data-m="wire">线框</button>
-        </div>
-        <button class="vbtn on" data-m="tex">贴图</button>
-        <button class="vbtn" data-m="grid">网格</button>
-        <button class="vbtn" data-m="rot">自动旋转</button>
-        <button class="vbtn" data-m="reset">重置视角</button>
+<div class="ov" id="ov">
+  <div class="ovp" id="ovp">
+    <div class="ov-top">
+      <div class="t" id="shT">—</div>
+      <div class="sub" id="shS"></div>
+      <div class="nav">
+        <button class="ib" id="shPrev" data-i="chev" style="transform:rotate(180deg)" title="上一个（←）"></button>
+        <button class="ib" id="shNext" data-i="chev" title="下一个（→）"></button>
+        <button class="ib" id="shFav" data-i="star" title="收藏"></button>
+        <span class="vsep"></span>
+        <button class="ib" id="shOpen" data-i="reveal" title="在资源管理器中显示"></button>
+        <button class="ib" id="shDl" data-i="dl" title="下载 OBJ"></button>
+        <button class="ib" id="shCopyPath" data-i="copy" title="复制路径"></button>
+        <button class="ib" id="shCopyInfo" data-i="info" title="复制资产信息"></button>
+        <span class="vsep"></span>
+        <button class="ib" id="shClose" data-i="close" title="关闭（Esc）"></button>
       </div>
-      <div class="stat" id="shstat"></div>
-      <div class="load3" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
     </div>
 
-    <aside class="pane pane-r"><div class="pane-in">
-      <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
-      <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
-      <div class="sec" style="padding:10px 12px 12px">
-        <button class="pri" id="shOpen" style="width:100%;height:34px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px">
-          <span data-i="reveal"></span>打开文件位置</button>
-        <div style="display:flex;gap:6px;margin-top:6px">
-          <button class="ib" id="shDl" data-i="dl" title="下载 OBJ" style="flex:1;height:32px;width:auto"></button>
-          <button class="ib" id="shCopyPath" data-i="copy" title="复制路径" style="flex:1;height:32px;width:auto"></button>
-          <button class="ib" id="shCopyInfo" data-i="info" title="复制资产信息" style="flex:1;height:32px;width:auto"></button>
+    <div class="ov-body">
+      <aside class="pane pane-l"><div class="pane-in">
+        <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
+        <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
+        <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
+      </div></aside>
+
+      <div class="stage3" id="shview">
+        <div class="hint" id="shHint">拖动旋转 · 滚轮缩放 · ←→ 换模型</div>
+        <div class="texbar" id="texbar"></div>
+        <div class="hud" id="shhud">
+          <div class="vseg">
+            <button class="vbtn on" data-m="solid">实体</button>
+            <button class="vbtn" data-m="wire">线框</button>
+          </div>
+          <button class="vbtn on" data-m="tex">贴图</button>
+          <button class="vbtn" data-m="grid">网格</button>
+          <button class="vbtn" data-m="rot">自动旋转</button>
+          <button class="vbtn" data-m="reset">重置视角</button>
         </div>
+        <div class="stat" id="shstat"></div>
+        <div class="load3" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
       </div>
-    </div></aside>
+
+      <aside class="pane pane-r"><div class="pane-in">
+        <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
+        <div class="sec"><h6>关联</h6><div class="js-rel"></div></div>
+        <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
+        <div class="sec"><h6>索引</h6><div class="js-idx"></div></div>
+      </div></aside>
+    </div>
   </div>
 </div>
 
+<div class="menu" id="sortMenu"></div>
 <div class="pop" id="pop"></div>
 <div class="tip" id="tip"></div>
 <div class="toast" id="toast"></div>
@@ -561,7 +552,7 @@ fetch('catalog_v3.json').then(r=>r.json()).then(d=>{
   S.tex  = arr.reduce((a,i)=>a+(i.tn?1:0),0);
   S.bytes= arr.reduce((a,i)=>a+(i.s||0),0);
   $('load').remove();
-  syncTop(); recount(); apply();
+  buildSortMenu(); syncTop(); recount(); apply();
   new ResizeObserver(()=>layout(true)).observe($('stage'));
 }).catch(e=>{ $('load').textContent = '加载失败：' + e.message; });
 
@@ -598,14 +589,51 @@ function apply(){
   if(k==='n') out.sort((a,b)=> a.dn.localeCompare(b.dn)*dir);
   else if(dir) out.sort((a,b)=> (a[k]-b[k])*dir || (a.n<b.n?-1:1));
   S.view = out;
-  markSort(); layout(true); status();
+  markSort(); layout(true); status(); renderFbar();
 }
 function markSort(){
-  $('mbar').querySelectorAll('.mb').forEach(b=>{ const on = b.dataset.s===S.sort;
-    b.classList.toggle('on',on); b.classList.toggle('asc', on && S.dir>0); });
+  const lab = {fa:'面数',v:'顶点',tn:'贴图',s:'大小',n:'名称'}[S.sort] || S.sort;
+  setT($('sortLab'), lab);
+  setT($('sortDir'), S.dir < 0 ? '↓' : '↑');
+  $('sortMenu').querySelectorAll('[data-s]').forEach(b=>{
+    const on = b.dataset.s===S.sort;
+    b.classList.toggle('on', on);
+    const k = b.querySelector('.k'); if(k) setT(k, on ? (S.dir<0?'降序':'升序') : '');
+  });
+  const dk = $('dirK'); if(dk) setT(dk, S.dir<0 ? '降序' : '升序');
   $('lhead').querySelectorAll('[data-s]').forEach(c=>{ const on = c.dataset.s===S.sort;
     c.classList.toggle('on',on);
     const a = c.querySelector('em'); if(a) a.textContent = on ? (S.dir<0?'↓':'↑') : ''; });
+}
+
+/* 活动筛选条：把「现在被什么筛着」摆在明面上，每项都能一键摘掉 */
+function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function renderFbar(){
+  const bar = $('fbar');
+  const g = S.f.game ? (GAMES[S.f.game]||[S.f.game,'#8E8E96']) : null;
+  const k = S.f.kind ? (KINDS[S.f.kind]||[S.f.kind,'#8E8E96']) : null;
+  const parts = [];
+  if(S.q) parts.push(['搜索', S.q, '#8E8E96', ()=>{ S.q=''; $('q').value=''; }]);
+  if(g) parts.push(['游戏', g[0], g[1], ()=>{ S.f.game=null; }]);
+  if(k) parts.push(['类型', k[0], k[1], ()=>{ S.f.kind=null; }]);
+  if(S.f.fac) parts.push(['分组', S.f.fac, '#8E8E96', ()=>{ S.f.fac=null; }]);
+  if(S.favOnly) parts.push(['收藏', '仅 '+S.fav.size+' 个', '#8E8E96', ()=>{ S.favOnly=false; }]);
+  if(S.dup) parts.push(['副本', '已隐藏', '#B26A00', ()=>{ S.dup=false; }]);
+  if(!parts.length){ bar.classList.remove('on'); bar.innerHTML=''; bar.onclick=null; return; }
+  bar.innerHTML = '<span class="flab">筛选中</span>' + parts.map((p,i)=>
+    '<span class="fchip"><i class="d" style="background:'+p[2]+'"></i>'+esc(p[0])+'：'+esc(p[1])+
+    '<button class="x" data-i="'+i+'" title="移除该条件">✕</button></span>').join('')+
+    '<button class="clr" data-clr="1">清除全部</button>';
+  bar.classList.add('on');
+  bar.onclick = e=>{
+    if(e.target.closest('[data-clr]')){
+      S.q=''; $('q').value=''; S.f={game:null,kind:null,fac:null}; S.favOnly=false; S.dup=false;
+    } else {
+      const x = e.target.closest('.x'); if(!x) return;
+      parts[+x.dataset.i][3]();
+    }
+    syncTop(); markRail(); recount(); apply();
+  };
 }
 
 /* ─────────── 虚拟滚动（节点池复用） ─────────── */
@@ -746,7 +774,6 @@ function paintRow(el, it){
   setT(c.n[2], it.tn?String(it.tn):'—'); setT(c.n[3], kb(it.s));
 }
 function status(){
-  $('cnt').textContent = nf(S.view.length)+' / '+nf(S.tot);
   $('sbar').innerHTML =
     '显示 <b>'+nf(S.view.length)+'</b> / '+nf(S.tot)+
     '<i>|</i>重复副本 <b>'+nf(S.tot-S.uniq)+'</b>'+(S.dup?'（已隐藏）':'')+
@@ -755,32 +782,56 @@ function status(){
     '<span class="sp"></span>模型体积 <b>'+(S.bytes/1048576).toFixed(1)+' GB</b>';
 }
 
-/* ─────────── 详情（右侧停靠 + 居中查看器共用） ─────────── */
+/* ─────────── 详情总览面板：字段分列两栏 ─────────── */
 function row(k,v,cls){ return '<div class="r"><span class="k">'+k+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>'; }
 function chip(c,text){ return '<span class="chip"><i class="d" style="background:'+c+'"></i>'+text+'</span>'; }
 function fillInfo(root, it, withThumbs){
-  /* 停靠面板与查看器共用：字段按目标面板各取所需，缺失的区块直接跳过。
-     withThumbs=false 时不出图片网格（查看器把缩略图放进了顶部贴图排）。 */
+  /* 字段按目标列各取所需，缺失区块直接跳过；withThumbs=false 不出图片网格
+     （总览面板把缩略图放进了顶部贴图排）。 */
   const q = s => root.querySelector('.js-'+s);
   const k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96'];
   const kind = q('kind');
   if(kind) kind.innerHTML = chip(gm[1], gm[0]) + chip(k[1], k[0])
     + (it.f && it.f!==gm[0] && it.f!==k[0] ? chip('#8E8E96', it.f) : '');
   const ident = q('ident');
-  if(ident) ident.innerHTML =
-    row('显示名', it.dn) + row('文件名', it.n+'.obj', 'mono') +
-    (it.rn && it.rn !== it.dn ? row('资源原名', it.rn, 'mono') : '') +
-    row('原始目录', it.c||'—', 'mono') + row('相对路径', it.p, 'mono') +
-    (it.dup != null ? row('重复项', '与 #'+it.dup+' 同名', 'mono warn') : '');
+  if(ident){
+    const dir = it.p ? it.p.replace(/\\/g,'/').split('/').slice(0,-1).join('/') : '';
+    ident.innerHTML = row('显示名', it.dn) + row('文件名', it.n+'.obj', 'mono') +
+      (it.rn && it.rn !== it.dn ? row('资源原名', it.rn, 'mono') : '') +
+      row('所属目录', it.c||'—', 'mono') +
+      (dir ? row('相对目录', dir, 'mono') : '') +
+      row('完整路径', it.p, 'mono') +
+      (it.dup != null ? row('重复副本', '与 #'+it.dup+' 同名，仅保留首个入册', 'mono warn') : '');
+  }
   const MAXF = 20000;
   const gnote = q('geo-note'); if(gnote) setT(gnote, '');
   const geo = q('geo');
-  if(geo) geo.innerHTML =
-    row('顶点', nf(it.v)) + row('三角面', nf(it.fa)) +
-    row('包围盒', dim(it.x)+' × '+dim(it.y)+' × '+dim(it.z)) +
-    row('文件大小', kb(it.s)) +
-    '<div class="bar"><i style="width:'+Math.min(100,(it.fa/MAXF*100)).toFixed(1)+'%;background:'+k[1]+'"></i></div>'+
-    '<div class="note">面数刻度满格 '+nf(MAXF)+'，用于横向比较模型成本</div>';
+  if(geo){
+    const mx = Math.max(it.x||0, it.y||0, it.z||0);
+    const tri = it.v ? (it.fa/Math.max(it.v,1)) : 0;
+    geo.innerHTML =
+      row('顶点', nf(it.v)) + row('三角面', nf(it.fa)) +
+      row('包围盒 X', dim(it.x) + ' 单位') + row('包围盒 Y', dim(it.y) + ' 单位') +
+      row('包围盒 Z', dim(it.z) + ' 单位') + row('最长边', dim(mx) + ' 单位') +
+      row('面/顶点比', tri.toFixed(2)) +
+      row('文件大小', kb(it.s)) +
+      '<div class="bar"><i style="width:'+Math.min(100,(it.fa/MAXF*100)).toFixed(1)+'%;background:'+k[1]+'"></i></div>'+
+      '<div class="note">面数刻度满格 '+nf(MAXF)+'（本库最大 '+nf(MAXF)+' 面），用于横向比较模型成本</div>';
+  }
+  /* 关联：这个模型在库里的「同族」有多少 —— 判断能不能复用、会不会选错 */
+  const rel = q('rel');
+  if(rel){
+    const same = (f, v) => S.items.reduce((a,x)=> a + (x[f]===v ? 1 : 0), 0);
+    const stem = it.n.replace(/_lod\d+$/i,'').replace(/_\d{2,6}$/,'');
+    const stemN = S.items.reduce((a,x)=> a + (x.g===it.g && x.n.replace(/_lod\d+$/i,'').replace(/_\d{2,6}$/,'')===stem ? 1 : 0), 0);
+    const texN = it.tl && it.tl[0] ? S.items.reduce((a,x)=> a + ((x.tl||[]).indexOf(it.tl[0])>=0 ? 1 : 0), 0) : 0;
+    rel.innerHTML =
+      row('同游戏', nf(same('g', it.g)) + ' 个') +
+      row('同类型', nf(same('k', it.k)) + ' 个') +
+      row('同分组', nf(same('f', it.f)) + ' 个') +
+      row('同名族', nf(stemN) + ' 个', stemN>1?'warn':'') +
+      (texN ? row('共用首张贴图', nf(texN) + ' 个', texN>1?'warn':'') : '');
+  }
   const texN = q('tex-n'); if(texN) setT(texN, it.tn ? it.tn+' 张' : '无');
   const roles = (it.tr||[]).map(r=>chip(k[1], ROLE_CN[r]||r)).join('');
   const tex = q('tex');
@@ -796,40 +847,32 @@ function fillInfo(root, it, withThumbs){
   const tags = q('tags');
   if(tags) tags.innerHTML = (it.tg||[]).map(t=>chip(t==='dup'||t==='empty'||t==='big'?'#B26A00':'#8E8E96', TAG_CN[t]||t)).join('')
     || '<span style="font-size:11.5px;color:var(--text-3)">（无）</span>';
+  const idx = q('idx');
+  if(idx) idx.innerHTML =
+    row('入库序号', '#'+it.id) +
+    row('缩略图', '_thumbs/'+Math.floor(it.id/1000)+'/'+it.id+'.webp', 'mono') +
+    row('在结果中', (S.idx>=0 ? '第 '+(S.idx+1)+' / '+nf(S.view.length) : '—'));
 }
 
 function open(i){
   const it = S.view[i]; if(!it) return;
   S.idx = i; S.cur = it;
-  renderTok++; threeOn = false; MESH = null; CT = null; GRID = null;
-  MODE = {wire:false, tex:true, rot:false, grid:false};
-  $('dock').classList.add('on');
-  setT($('dT'), it.dn); $('dT').title = it.dn;
-  $('dFav').classList.toggle('on', S.fav.has(it.id));
-  $('dPrev2').innerHTML = '<img src="'+TH(it)+'" data-fb="'+it.k+'" alt="">';
-  fillInfo($('dock'), it);
-  for(const el of Pool.nodes) el.classList.toggle('on', +el._vi === i);
-  setTimeout(()=>layout(true), 200);
+  openViewer();
 }
-function closeDock(){ $('dock').classList.remove('on'); S.idx=-1;
-  for(const el of Pool.nodes) el.classList.remove('on'); setTimeout(()=>layout(true),200); }
-$('dClose').onclick = closeDock;
-$('dPrev').onclick = ()=> S.idx>0 && open(S.idx-1);
-$('dNext').onclick = ()=> S.idx<S.view.length-1 && open(S.idx+1);
-$('dFav').onclick = ()=> toggleFav(S.cur, 'd');
-function toggleFav(it, which){
+function setSel(){
+  for(const el of Pool.nodes) el.classList.toggle('on', +el._vi === S.idx);
+}
+function toggleFav(it){
   if(!it) return;
   S.fav.has(it.id) ? S.fav.delete(it.id) : S.fav.add(it.id);
   try{ localStorage.setItem('av_fav', JSON.stringify([...S.fav])); }catch(e){}
-  if(which!=='sh') $('dFav').classList.toggle('on', S.fav.has(it.id));
-  if(which!=='d')  $('shFav').classList.toggle('on', S.fav.has(it.id));
-  status(); if(S.favOnly) apply();
+  $('shFav').classList.toggle('on', S.fav.has(it.id));
+  status(); renderFbar(); if(S.favOnly) apply();
 }
-$('aOpen').onclick = ()=> fetch('/open?path='+encodeURIComponent(S.cur.p)).then(()=>toast('已在资源管理器中选中')).catch(()=>toast('打开失败'));
-$('aCopyPath').onclick = ()=> copy(S.cur.p.replace(/\//g,'\\'), '路径已复制');
-$('aCopyInfo').onclick = ()=> copyInfo(S.cur);
-$('aDl').onclick = ()=>{ const a=document.createElement('a'); a.href=enc(S.cur.p); a.download=S.cur.n+'.obj'; a.click(); };
-$('a3d').onclick = openViewer; $('d3d').onclick = openViewer;
+$('shOpen').onclick = ()=> fetch('/open?path='+encodeURIComponent(S.cur.p)).then(()=>toast('已在资源管理器中选中')).catch(()=>toast('打开失败'));
+$('shCopyPath').onclick = ()=> copy(S.cur.p.replace(/\//g,'\\'), '路径已复制');
+$('shCopyInfo').onclick = ()=> copyInfo(S.cur);
+$('shDl').onclick = ()=>{ const a=document.createElement('a'); a.href=enc(S.cur.p); a.download=S.cur.n+'.obj'; a.click(); };
 function copy(t,msg){ navigator.clipboard ? navigator.clipboard.writeText(t).then(()=>toast(msg)).catch(()=>toast('复制失败')) : toast('复制失败'); }
 function copyInfo(it){ const k=KINDS[it.k]||KINDS.misc, gm=GAMES[it.g]||[it.g];
   copy([gm[0]+' / '+k[0]+' / '+(it.f||'—'), '名称: '+it.dn, '原名: '+(it.rn||'-'), '路径: '+it.p,
@@ -950,17 +993,19 @@ function openViewer(){
   const it = S.cur, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96'];
   renderTok++; threeOn = false; MESH = null; CT = null; GRID = null; MATS = null;
   MODE = {wire:false, tex:true, rot:false, grid:false};
-  const sheet = $('sheet');
-  sheet.classList.add('on');
+  const ov = $('ov');
+  const first = !ov.classList.contains('on');
+  ov.classList.add('on');
   setT($('shT'), it.dn); $('shT').title = it.dn;
   setT($('shS'), gm[0]+' · '+k[0]+(it.f?' · '+it.f:'')+' · '+nf(it.fa)+' 三角面');
   $('shFav').classList.toggle('on', S.fav.has(it.id));
-  fillInfo(sheet, it, false);
+  fillInfo(ov, it, false);
   buildTexBar(it);
   paintHud();
+  setSel();
   const old = $('shview').querySelector('canvas'); if(old) old.remove();
   $('shstat').classList.remove('on');
-  $('shload').classList.add('on');
+  if(first) $('shload').classList.add('on');     // 首次要下 3D 引擎，给个进度；之后已缓存
   setTimeout(()=>{
     loadThree().then(()=>{
       $('shload').classList.remove('on');
@@ -970,12 +1015,13 @@ function openViewer(){
   }, 30);
 }
 function closeViewer(){
-  $('sheet').classList.remove('on');
+  $('ov').classList.remove('on');
   $('texbar').classList.remove('on');
   renderTok++; threeOn = false; MESH = null; CT = null; GRID = null; MATS = null;
   if(TEX.tex){ TEX.tex.dispose(); TEX.tex = null; }
   const c = $('shview').querySelector('canvas'); if(c) c.remove();
   $('shstat').classList.remove('on');
+  S.idx = -1; setSel();
 }
 
 /* 相机按包围盒重新取景（不重建模型） */
@@ -1057,13 +1103,9 @@ function paintHud(){
 }
 $('shhud').onclick = e=>{ const b = e.target.closest('.vbtn'); if(b) hud3(b.dataset.m); };
 $('shClose').onclick = closeViewer;
-$('shPrev').onclick = ()=>{ if(S.idx>0){ open(S.idx-1); openViewer(); } };
-$('shNext').onclick = ()=>{ if(S.idx<S.view.length-1){ open(S.idx+1); openViewer(); } };
-$('shFav').onclick = ()=> toggleFav(S.cur, 'sh');
-$('shOpen').onclick = ()=> fetch('/open?path='+encodeURIComponent(S.cur.p)).then(()=>toast('已在资源管理器中选中')).catch(()=>toast('打开失败'));
-$('shDl').onclick = ()=>{ const a=document.createElement('a'); a.href=enc(S.cur.p); a.download=S.cur.n+'.obj'; a.click(); };
-$('shCopyPath').onclick = ()=> copy(S.cur.p.replace(/\//g,'\\'), '路径已复制');
-$('shCopyInfo').onclick = ()=> copyInfo(S.cur);
+$('shPrev').onclick = ()=> { if(S.idx>0) open(S.idx-1); };
+$('shNext').onclick = ()=> { if(S.idx<S.view.length-1) open(S.idx+1); };
+$('shFav').onclick = ()=> toggleFav(S.cur);
 
 /* ─────────── 左侧导航 + 筛选面板 ─────────── */
 const PANELS = {
@@ -1153,13 +1195,31 @@ function sbar(t,n,mx,c){
 }
 document.addEventListener('click', e=>{
   if(!e.target.closest('#pop,#btnStats,.rbtn[data-p=stats]')) pop.classList.remove('on');
+  if(!e.target.closest('#sortMenu,#btnSort')) $('sortMenu').classList.remove('on');
 });
 
-/* ─────────── 排序条 ─────────── */
-$('mbar').onclick = e=>{ const b=e.target.closest('.mb'); if(!b) return;
-  const s=b.dataset.s;
-  if(S.sort===s) S.dir=-S.dir; else { S.sort=s; S.dir=-1; }
-  apply(); };
+/* ─────────── 排序菜单（替代原来的排序条） ─────────── */
+const SORTS = [['fa','面数','face'],['v','顶点','vtx'],['tn','贴图','tex'],['s','大小','doc'],['n','名称','sort']];
+function buildSortMenu(){
+  $('sortMenu').innerHTML =
+    SORTS.map(s=>'<button data-s="'+s[0]+'"><span data-i="'+s[2]+'"></span>'+s[1]+
+      '<span class="k" data-k="'+s[0]+'"></span></button>').join('')+
+    '<div class="msep"></div><button data-dir="1">切换升序 / 降序<span class="k" id="dirK"></span></button>';
+  PAINT_ICONS($('sortMenu'));
+  $('sortMenu').onclick = e=>{
+    const b = e.target.closest('button'); if(!b) return;
+    if(b.dataset.dir){ S.dir = -S.dir; }
+    else { const s=b.dataset.s; if(S.sort===s) S.dir=-S.dir; else { S.sort=s; S.dir = s==='n'?1:-1; } }
+    $('sortMenu').classList.remove('on'); apply();
+  };
+}
+$('btnSort').onclick = e=>{ e.stopPropagation();
+  const r = $('btnSort').getBoundingClientRect();
+  const m = $('sortMenu');
+  m.style.top = (r.bottom+6)+'px';
+  m.style.left = Math.min(r.left, innerWidth-180)+'px';
+  m.classList.toggle('on');
+};
 
 /* ─────────── 键盘 ─────────── */
 addEventListener('keydown', e=>{
@@ -1169,20 +1229,16 @@ addEventListener('keydown', e=>{
   if(meta && e.key==='2'){ e.preventDefault(); $('view').querySelector('[data-v=list]').click(); return; }
   if(e.key==='Escape'){
     pop.classList.remove('on');
-    if($('sheet').classList.contains('on')) return closeViewer();
-    if($('dock').classList.contains('on')) return closeDock();
+    $('sortMenu').classList.remove('on');
+    if($('ov').classList.contains('on')) return closeViewer();
     return closeFly();
   }
-  if(e.key==='Enter' && S.cur && !$('sheet').classList.contains('on')){ e.preventDefault(); return openViewer(); }
-  if($('sheet').classList.contains('on')){
+  if($('ov').classList.contains('on')){
     if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); $('shNext').click(); }
     if(e.key==='ArrowLeft' ||e.key==='ArrowUp'){ e.preventDefault(); $('shPrev').click(); }
     return;
   }
-  if($('dock').classList.contains('on')){
-    if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); $('dNext').click(); }
-    if(e.key==='ArrowLeft' ||e.key==='ArrowUp'){ e.preventDefault(); $('dPrev').click(); }
-  }
+  if(e.key==='Enter' && S.idx >= 0){ e.preventDefault(); openViewer(); }
 });
 
 /* 缩略图缺失 → 回退分类符号（error 不冒泡，必须捕获） */

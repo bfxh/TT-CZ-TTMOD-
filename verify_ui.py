@@ -33,25 +33,39 @@ setTimeout(function(){
     }
   });
   out.push('图标 <use> '+tot+'，失效 '+bad.length+(bad.length?' → '+bad.slice(0,6).join(','):''));
-  out.push('顶栏：'+[].map.call(document.querySelectorAll('.top .seg button,.top .tbtn'),
-    function(b){return b.textContent.trim()}).join(' / '));
-  out.push('排序条：'+[].map.call(document.querySelectorAll('.mb'),
-    function(b){return b.textContent.trim()}).join(' / '));
+  out.push('头部：'+[].map.call(document.querySelectorAll('.top .seg button,.top .tbtn,.top .ib'),
+    function(b){return b.textContent.trim()||b.title}).join(' / '));
+  out.push('没有排序条（.mbar 应为 0）：'+document.querySelectorAll('.mbar').length+
+    ' · 排序菜单项 '+document.querySelectorAll('#sortMenu [data-s]').length);
+  out.push('没有右侧停靠栏（.dock 应为 0）：'+document.querySelectorAll('.dock').length);
   out.push('轨道按钮 '+document.querySelectorAll('.rbtn').length+' 个');
   var cds=document.querySelectorAll('.cd');
   var ok=[].filter.call(document.querySelectorAll('.cd .th>img'),function(i){return i.naturalWidth>0;});
   out.push('卡片 '+cds.length+' 个，缩略图解码 '+ok.length+' 张');
   if(cds[0]) out.push('卡片文本：'+cds[0].textContent.replace(/\s+/g,' ').trim());
-  if(cds[1]) out.push('第二张：'+cds[1].textContent.replace(/\s+/g,' ').trim());
-  try{ open(0); }catch(e){ out.push('open 异常 '+e.message); }
-  var d=document.querySelector('#dock');
-  out.push('停靠面板 '+(d.classList.contains('on')?'打开':'关闭'));
-  out.push('详情字段：'+['显示名','文件名','资源原名','原始目录','相对路径','顶点','三角面','包围盒','文件大小','贴图','标记']
-    .filter(function(t){ return d.textContent.indexOf(t)>=0; }).join(' / '));
-  out.push('详情正文：'+d.textContent.replace(/\s+/g,' ').trim().slice(0,170));
-  out.push('状态条：'+document.querySelector('#sbar').textContent.replace(/\s+/g,' ').trim());
-  out.push('JS 错误：'+(__errs.length?__errs.join(';'):'无'));
-  try{ fetch('/diag',{method:'POST',body:out.join('\n')}); }catch(e){}
+  // 筛选条：加条件应出现，点 ✕ 应消失
+  try{
+    document.querySelector('.rbtn[data-p=kind]').click();
+    setTimeout(function(){
+      var op=document.querySelector('#flyL .opt'); if(op) op.click();
+      var bar=document.querySelector('#fbar');
+      out.push('筛选条 '+(bar.classList.contains('on')?'出现':'未出现')+' · chip '+bar.querySelectorAll('.fchip').length+
+        ' · 内容 '+bar.textContent.replace(/\s+/g,' ').trim());
+      var x=bar.querySelector('.fchip .x'); if(x) x.click();
+      out.push('点 ✕ 后筛选条 '+(document.querySelector('#fbar').classList.contains('on')?'仍在':'收起'));
+      // 排序菜单
+      document.querySelector('#btnSort').click();
+      out.push('排序菜单 '+(document.querySelector('#sortMenu').classList.contains('on')?'打开':'未打开')+
+        ' · 选项 '+document.querySelectorAll('#sortMenu [data-s]').length+
+        ' · 标签 '+document.querySelector('#sortLab').textContent+document.querySelector('#sortDir').textContent);
+      document.querySelectorAll('#sortMenu [data-s]')[2].click();
+      out.push('选第 3 项后 → '+document.querySelector('#sortLab').textContent+document.querySelector('#sortDir').textContent+
+        ' · 菜单已收起 '+(document.querySelector('#sortMenu').classList.contains('on')?'否':'是'));
+      out.push('状态条：'+document.querySelector('#sbar').textContent.replace(/\s+/g,' ').trim());
+      out.push('JS 错误：'+(__errs.length?__errs.join(';'):'无'));
+      try{ fetch('/diag',{method:'POST',body:out.join('\n')}); }catch(e){}
+    },600);
+  }catch(e){ out.push('筛选/排序检查异常 '+e.message); try{ fetch('/diag',{method:'POST',body:out.join('\n')}); }catch(e2){} }
 },3200);
 </script>
 </body>"""
@@ -60,7 +74,6 @@ LIST = r"""
 <script>
 setTimeout(function(){
   document.querySelector('[data-v=list]').click();
-  setTimeout(function(){ open(0); }, 600);
 },3200);
 </script>
 </body>"""
@@ -74,22 +87,28 @@ setTimeout(function(){
     setTimeout(function(){
       var o=[], cv=document.querySelector('#shview canvas');
       var pans=document.querySelectorAll('.pane');
-      var vw=innerWidth;
+      var vw=innerWidth, vh=innerHeight;
       function skew(el){ return getComputedStyle(el.querySelector('.pane-in')).transform; }
-      o.push('查看器 '+(document.querySelector('#sheet').classList.contains('on')?'打开':'关闭'));
+      var ov=document.querySelector('#ov'), ovp=document.querySelector('#ovp');
+      function R(e){ var r=e.getBoundingClientRect();
+        return Math.round(r.left)+','+Math.round(r.top)+' '+Math.round(r.width)+'×'+Math.round(r.height); }
+      o.push('总览层 '+(ov.classList.contains('on')?'打开':'关闭')+' · 面板 '+R(ovp)+
+        ' · 占屏 '+(ovp.getBoundingClientRect().width/vw*100).toFixed(1)+'% × '+
+        (ovp.getBoundingClientRect().height/vh*100).toFixed(1)+'%');
+      var pr=ovp.getBoundingClientRect();
+      o.push('面板居中：左 '+Math.round(pr.left)+' 右 '+Math.round(vw-pr.right)+
+        ' 上 '+Math.round(pr.top)+' 下 '+Math.round(vh-pr.bottom)+
+        ((Math.abs(pr.left-(vw-pr.right))<2 && Math.abs(pr.top-(vh-pr.bottom))<2)?'（对称）':'（不对称）'));
       o.push('canvas '+(cv?Math.round(cv.getBoundingClientRect().width)+'×'+Math.round(cv.getBoundingClientRect().height):'未创建'));
-      o.push('信息板数量 '+pans.length+
-        ' / 宽度 '+[].map.call(pans,function(p){return (p.getBoundingClientRect().width/vw*100).toFixed(1)+'%'}).join(',')+
-        ' / 合计 '+(pans.length?((pans[0].getBoundingClientRect().width+pans[pans.length-1].getBoundingClientRect().width)/vw*100).toFixed(1)+'%':'-'));
-      o.push('左板斜切 '+(pans.length?skew(pans[0]):'-'));
-      o.push('右板斜切 '+(pans.length>1?skew(pans[1]):'-'));
+      o.push('信息板 '+pans.length+' 块 / 各 '+[].map.call(pans,function(p){
+        return (p.getBoundingClientRect().width/vw*100).toFixed(1)+'%'}).join(',')+
+        ' · 斜切左 '+(pans.length?skew(pans[0]).slice(0,34):'-')+'…');
       var ths=document.querySelectorAll('#texbar .tb-th');
       o.push('贴图排 '+(document.querySelector('#texbar').classList.contains('on')?'显示':'隐藏')+
         ' · 缩略图 '+ths.length+' · 原始材质钮 '+document.querySelectorAll('#texbar .tb-chip').length+
         ' · 平铺档 '+[].map.call(document.querySelectorAll('#texbar [data-tile]'),function(b){return b.textContent}).join('')+
         ' · 亮度滑杆 '+(document.querySelector('#tbBright')?'有':'无'));
       o.push('默认覆盖 '+TEX.path+' / 高亮项 '+document.querySelectorAll('#texbar .tb-th.on').length);
-      // 点第二张贴图 → 覆盖应当切换
       if(ths.length>1){
         ths[1].click();
         o.push('点第 2 张贴图后 TEX.path='+TEX.path.split('/').pop()+
@@ -101,10 +120,11 @@ setTimeout(function(){
       if(tile2){ tile2.click(); o.push('点平铺 ×2 后 TEX.tile='+TEX.tile); }
       o.push('HUD '+[].map.call(document.querySelectorAll('#shhud .vbtn'),function(b){return b.textContent}).join(' / '));
       o.push('状态行 '+document.querySelector('#shstat').textContent);
-      o.push('左板字段 '+['显示名','文件名','原始目录','相对路径','贴图','来源']
+      o.push('左板字段 '+['显示名','文件名','资源原名','所属目录','相对目录','完整路径','贴图','来源']
         .filter(function(t){ return pans[0].textContent.indexOf(t)>=0; }).join(' / '));
-      o.push('右板字段 '+['顶点','三角面','包围盒','文件大小','标记','打开文件位置']
+      o.push('右板字段 '+['顶点','三角面','包围盒 X','最长边','面/顶点比','文件大小','同游戏','同名族','共用首张贴图','标记','入库序号','缩略图']
         .filter(function(t){ return pans[1].textContent.indexOf(t)>=0; }).join(' / '));
+      o.push('右板正文 '+pans[1].textContent.replace(/\s+/g,' ').trim().slice(0,150));
       o.push('JS 错误 '+(window.__errs&&window.__errs.length?window.__errs.join(';'):'无'));
       try{ fetch('/diag',{method:'POST',body:o.join('\n')}); }catch(e){}
     },7000);
@@ -168,42 +188,53 @@ def ascii_map(path, cw=88, ch=38):
     return '\n'.join('   ' + ''.join(ramp[k] for k in row) for row in idx)
 
 
-def regions(path):
-    """分区墨迹率：判断版面各区域到底有没有内容（模型读不了图，只能量化）。
-    查看器是「两侧信息板 + 中间 3D」三段式，所以按 2%/23%/50%/77%/98% 取样。"""
+def regions(path, kind='page'):
+    """分区暗像素数。
+    用「绝对暗像素数」而不是「墨迹率」——信息板内容只占上半截，
+    按全高算比率会被下半截留白稀释成假空白（这个坑踩过）。
+    kind='page' 看书目页（轨道 / 头部 / 筛选条 / 内容 / 状态条）；
+    kind='ov'   看详情总览面板（遮罩 / 左板 / 中间 3D / 右板 / 顶条）。"""
     with Image.open(path) as raw:
         rgb = np.asarray(raw.convert('RGB'), dtype=np.int16)
     h, w = rgb.shape[:2]
     kb_size = os.path.getsize(path) / 1024
 
-    def avg(x0, y0, x1, y1, step=4):
-        blk = rgb[y0:y1:step, x0:x1:step]
+    def dark(x0, y0, x1, y1):
+        blk = rgb[max(0, y0):y1, max(0, x0):x1]
+        return int((blk < 200).any(axis=2).sum()) if blk.size else 0
+
+    def avg(x0, y0, x1, y1):
+        blk = rgb[max(0, y0):y1, max(0, x0):x1]
         if blk.size == 0:
             return (0, 0, 0)
         m = blk.reshape(-1, 3).mean(axis=0)
         return (int(m[0]), int(m[1]), int(m[2]))
 
-    def p(f):
-        return int(w * f)
-
-    # 信息板内容只占上半截，用「墨迹率」会被下方留白稀释成假空白；
-    # 所以这里同时给绝对暗像素数，两个口径一起看。
-    def dark(x0, y0, x1, y1):
-        blk = rgb[y0:y1, x0:x1]
-        return int((blk < 200).any(axis=2).sum()) if blk.size else 0
-
-    return ('尺寸 %d×%d  %.0f KB\n'
-            '   左信息板  暗像素 %6d 千色 %s\n'
-            '   中间 3D    暗像素 %6d\n'
-            '   右信息板  暗像素 %6d 千色 %s\n'
-            '   顶栏       暗像素 %6d\n'
-            '   贴图排     暗像素 %6d') % (
-        w, h, kb_size,
-        dark(p(.02), 44, p(.24), h - 30), avg(p(.05), 60, p(.2), 340),
-        dark(p(.27), 130, p(.73), h - 40),
-        dark(p(.76), 44, p(.98), h - 30), avg(p(.80), 60, p(.95), 340),
-        dark(0, 0, w, 42),
-        dark(p(.27), 56, p(.73), 112))
+    head = '尺寸 %d×%d  %.0f KB\n' % (w, h, kb_size)
+    if kind == 'ov':
+        # 总览面板占 4%~96%：左板 4~24%、中间 24~76%、右板 76~96%
+        return head + (
+            '   遮罩(0-4%%)        暗像素 %6d  均色 %s\n'
+            '   左信息板(5-23%%)   暗像素 %6d  均色 %s\n'
+            '   中间 3D(26-74%%)   暗像素 %6d\n'
+            '   右信息板(77-95%%)  暗像素 %6d  均色 %s'
+        ) % (
+            dark(0, 0, int(w * .04), h), avg(2, int(h * .3), int(w * .03), int(h * .7)),
+            dark(int(w * .05), int(h * .06), int(w * .23), int(h * .96)),
+            avg(int(w * .06), int(h * .08), int(w * .22), int(h * .3)),
+            dark(int(w * .26), int(h * .12), int(w * .74), int(h * .96)),
+            dark(int(w * .77), int(h * .06), int(w * .95), int(h * .96)),
+            avg(int(w * .78), int(h * .08), int(w * .94), int(h * .3)))
+    return head + (
+        '   左轨道(0-48)      暗像素 %6d\n'
+        '   头部(0-52)        暗像素 %6d\n'
+        '   内容区            暗像素 %6d\n'
+        '   状态条(底 24)     暗像素 %6d'
+    ) % (
+        dark(0, 60, 46, h - 30),
+        dark(0, 0, w, 52),
+        dark(60, 60, w - 10, h - 30),
+        dark(0, h - 24, w, h))
 
 
 os.makedirs(SHOT, exist_ok=True)
@@ -220,10 +251,11 @@ print()
 print('══ 3. 截图与版面分析 ══')
 run('grid', '', 22000, os.path.join(SHOT, '1-grid.png'))
 run('list', LIST, 24000, os.path.join(SHOT, '2-list.png'))
-for f, label in [('1-grid.png', '网格视图'), ('2-list.png', '列表视图'), ('3-viewer.png', '居中查看器')]:
+for f, label, kind in [('1-grid.png', '网格视图', 'page'), ('2-list.png', '列表视图', 'page'),
+                       ('3-viewer.png', '详情总览', 'ov')]:
     p = os.path.join(SHOT, f)
     print('── %s ──' % label)
-    print(regions(p) if os.path.exists(p) else '   截图缺失')
+    print(regions(p, kind) if os.path.exists(p) else '   截图缺失')
 print()
 print(ascii_map(os.path.join(SHOT, '1-grid.png')))
 print()
