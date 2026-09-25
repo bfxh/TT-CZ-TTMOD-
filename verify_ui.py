@@ -125,6 +125,30 @@ setTimeout(function(){
       o.push('右板字段 '+['顶点','三角面','包围盒 X','最长边','面/顶点比','文件大小','同游戏','同名族','共用首张贴图','标记','入库序号','缩略图']
         .filter(function(t){ return pans[1].textContent.indexOf(t)>=0; }).join(' / '));
       o.push('右板正文 '+pans[1].textContent.replace(/\s+/g,' ').trim().slice(0,150));
+      // 把包围盒 8 角投到屏幕，直接判定模型有没有被裁切／被 UI 压住
+      try{
+        if(typeof MESH !== 'undefined' && MESH && typeof CAM !== 'undefined' && CAM){
+          var bb=new THREE.Box3().setFromObject(MESH);
+          var r=cv.getBoundingClientRect(), band=safeBand();
+          var minX=1e9,maxX=-1e9,minY=1e9,maxY=-1e9,back=0;
+          [[0,0,0],[1,0,0],[0,1,0],[0,0,1],[1,1,0],[1,0,1],[0,1,1],[1,1,1]].forEach(function(k){
+            var p=new THREE.Vector3(bb.min.x+(bb.max.x-bb.min.x)*k[0],
+                                    bb.min.y+(bb.max.y-bb.min.y)*k[1],
+                                    bb.min.z+(bb.max.z-bb.min.z)*k[2]).project(CAM);
+            if(Math.abs(p.z)>1) back++;
+            var x=(p.x*.5+.5)*r.width, y=(-p.y*.5+.5)*r.height;
+            minX=Math.min(minX,x); maxX=Math.max(maxX,x);
+            minY=Math.min(minY,y); maxY=Math.max(maxY,y);
+          });
+          o.push('模型投影 x '+Math.round(minX)+'~'+Math.round(maxX)+' / y '+Math.round(minY)+'~'+Math.round(maxY)+
+                 '（画布 '+Math.round(r.width)+'×'+Math.round(r.height)+'）· 相机距离 '+
+                 CAM.position.distanceTo(CT.target).toFixed(0)+' · 远角超界 '+back);
+          o.push('安全区 y '+Math.round(band.top)+'~'+Math.round(band.top+band.heff));
+          var over=(minX<11||maxX>band.w-11||minY<band.top-1||maxY>band.top+band.heff+1);
+          o.push('是否超出安全区：'+(over?'是 ← 有裁切':'否，完整落在安全区内')+
+                 ' · 占画布 '+(100*(maxY-minY)/r.height).toFixed(0)+'% 高 / '+(100*(maxX-minX)/r.width).toFixed(0)+'% 宽');
+        } else { o.push('投影检查跳过：MESH/CAM 不可见'); }
+      }catch(e){ o.push('投影检查异常 '+e.message); }
       o.push('JS 错误 '+(window.__errs&&window.__errs.length?window.__errs.join(';'):'无'));
       try{ fetch('/diag',{method:'POST',body:o.join('\n')}); }catch(e){}
     },7000);

@@ -285,12 +285,14 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1500px) rotateY(-9deg) rotateX(1.2deg)}
 .pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1500px) rotateY(9deg) rotateX(1.2deg)}
 
-.stage3{flex:1;min-width:0;position:relative;overflow:hidden;display:grid;place-items:center}
-.stage3 canvas{display:block}
-.stage3 .hint{position:absolute;right:12px;top:14px;font-size:11px;color:var(--text-3);z-index:2}
+/* 中间舞台：贴图排进流、不压画布；画布独占剩下的整块 */
+.stage3{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.cvwrap{flex:1;min-height:0;position:relative;display:grid;place-items:center;overflow:hidden}
+.cvwrap canvas{display:block}
+.hint{position:absolute;right:12px;top:10px;font-size:11px;color:var(--text-3);z-index:2}
 
-/* 中心上方：贴图排 —— 可点选覆盖，右侧带平铺与亮度 */
-.texbar{position:absolute;left:12px;right:12px;top:10px;z-index:5;display:none;align-items:center;gap:6px;
+/* 中心上方：贴图排 —— 在流里，不盖住画布（盖住会切掉模型顶部） */
+.texbar{display:none;align-items:center;gap:6px;flex:0 0 auto;margin:10px 12px 0;
   padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
   box-shadow:0 6px 20px rgba(0,0,0,.10);overflow-x:auto;overflow-y:hidden}
 .texbar.on{display:flex}
@@ -458,21 +460,23 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
         <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
       </div></aside>
 
-      <div class="stage3" id="shview">
-        <div class="hint" id="shHint">拖动旋转 · 滚轮缩放 · ←→ 换模型</div>
+      <div class="stage3">
         <div class="texbar" id="texbar"></div>
-        <div class="hud" id="shhud">
-          <div class="vseg">
-            <button class="vbtn on" data-m="solid">实体</button>
-            <button class="vbtn" data-m="wire">线框</button>
+        <div class="cvwrap" id="shview">
+          <div class="hint" id="shHint">拖动旋转 · 滚轮缩放 · ←→ 换模型</div>
+          <div class="hud" id="shhud">
+            <div class="vseg">
+              <button class="vbtn on" data-m="solid">实体</button>
+              <button class="vbtn" data-m="wire">线框</button>
+            </div>
+            <button class="vbtn on" data-m="tex">贴图</button>
+            <button class="vbtn" data-m="grid">网格</button>
+            <button class="vbtn" data-m="rot">自动旋转</button>
+            <button class="vbtn" data-m="reset">重置视角</button>
           </div>
-          <button class="vbtn on" data-m="tex">贴图</button>
-          <button class="vbtn" data-m="grid">网格</button>
-          <button class="vbtn" data-m="rot">自动旋转</button>
-          <button class="vbtn" data-m="reset">重置视角</button>
+          <div class="stat" id="shstat"></div>
+          <div class="load3" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
         </div>
-        <div class="stat" id="shstat"></div>
-        <div class="load3" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
       </div>
 
       <aside class="pane pane-r"><div class="pane-in">
@@ -554,6 +558,12 @@ fetch('catalog_v3.json').then(r=>r.json()).then(d=>{
   $('load').remove();
   buildSortMenu(); syncTop(); recount(); apply();
   new ResizeObserver(()=>layout(true)).observe($('stage'));
+  // 3D 画布尺寸一变就重新取景（窗口缩放、贴图排出现/消失都会改高度）
+  new ResizeObserver(()=>{
+    if(S.cur && threeOn && $('ov').classList.contains('on')){
+      init3(S.cur, $('shview'), $('shstat'));
+    }
+  }).observe($('shview'));
 }).catch(e=>{ $('load').textContent = '加载失败：' + e.message; });
 
 function syncTop(){
@@ -1024,14 +1034,75 @@ function closeViewer(){
   S.idx = -1; setSel();
 }
 
-/* 相机按包围盒重新取景（不重建模型） */
+/* 相机取景。
+   旧版是拍脑袋的 `position = c + (r*1.45, r*0.95, r*1.45)`：对单位立方体，
+   包围球半径 0.866、相机距离 2.23 ⇒ 张角 asin(0.866/2.23)=22.8° > 竖直半视角 20°，
+   竖向上模型本来就被切掉一截。
+   现在按包围球精确解距离，并把 HUD / 提示条占住的边带让出来，模型只会落在安全区里。 */
+function safeBand(){
+  const vp = $('shview').getBoundingClientRect();
+  const hud = $('shhud'), hint = $('shHint');
+  let bottom = 12, top = 10;
+  if(hud && hud.offsetParent){                       // HUD 在左下角
+    bottom = Math.max(bottom, vp.bottom - hud.getBoundingClientRect().top + 8);
+  }
+  if(hint && hint.offsetParent){                     // 提示在右上角
+    top = Math.max(top, hint.getBoundingClientRect().bottom - vp.top + 8);
+  }
+  const w = Math.max(80, vp.width), h = Math.max(80, vp.height);
+  const heff = Math.max(60, h - top - bottom);
+  return {w, h, top, bottom, heff, weff: Math.max(60, w - 24)};
+}
 function frameCam(o){
   const bb = new THREE.Box3().setFromObject(o);
-  const sp = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
-  const r = Math.max(sp.x, sp.y, sp.z) || 1;
-  CAM.position.set(c.x + r*1.45, c.y + r*0.95, c.z + r*1.45);
-  CT.target.copy(c);
-  CAM.near = r/100; CAM.far = r*150;
+  const c = bb.getCenter(new THREE.Vector3());
+  const band = safeBand();
+  const tanV = Math.tan(THREE.MathUtils.degToRad(CAM.fov) / 2);
+  const f = (band.h / 2) / tanV;                     // 焦距（像素），横竖共用
+
+  // 相机坐标架：与 three 的 lookAt 同一套约定（up=(0,1,0)）
+  const dir = new THREE.Vector3(0.92, 0.60, 0.92).normalize();   // 目标 → 相机
+  const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0,1,0), dir).normalize();
+  const up    = new THREE.Vector3().crossVectors(dir, right).normalize();
+
+  // 包围盒 8 角在相机坐标架下的分量（相对包围盒中心）
+  const corners = [];
+  for(let i=0;i<8;i++){
+    const p = new THREE.Vector3(i&1 ? bb.max.x : bb.min.x,
+                                i&2 ? bb.max.y : bb.min.y,
+                                i&4 ? bb.max.z : bb.min.z).sub(c);
+    corners.push({ a: p.dot(dir), h: p.dot(right), v: p.dot(up) });
+  }
+
+  // 每个角都要落进安全区：|v|*f/(d-a) <= heff/2 且 |h|*f/(d-a) <= weff/2
+  // ⇒ d >= a + |v|*h/(heff*tanV) 与 d >= a + |h|*h/(weff*tanV)，取全角最大者
+  let d = 1e-3, aMax = -1e9, aMin = 1e9;
+  for(const k of corners){
+    aMax = Math.max(aMax, k.a); aMin = Math.min(aMin, k.a);
+    d = Math.max(d,
+      k.a + Math.abs(k.v) * band.h / (band.heff * tanV),
+      k.a + Math.abs(k.h) * band.h / (band.weff * tanV));
+  }
+  d *= 1.04;                                          // 4% 余量
+
+  // 内容在画面里的垂直中心（像素，相对画布中心、**向下为正** ← 屏幕 y 向下，
+  // 所以这里取负号；写成正号会让补正翻倍、把模型推出安全区）
+  let lo = 1e9, hi = -1e9;
+  for(const k of corners){
+    const y = -f * k.v / (d - k.a);
+    lo = Math.min(lo, y); hi = Math.max(hi, y);
+  }
+  const bandCenter = (band.top + band.heff / 2) - band.h / 2;   // 同为向下为正
+  // 相机沿 +up 平移 δ ⇒ 内容在屏幕上向下移动 f·δ/depth
+  const shift = up.clone().multiplyScalar((bandCenter - (lo + hi) / 2) * (d / f));
+
+  CAM.up.set(0, 1, 0);
+  CAM.position.copy(c).addScaledVector(dir, d).add(shift);
+  CT.target.copy(c).add(shift);
+  CAM.lookAt(CT.target);
+
+  CAM.near = Math.max(1e-4, (d - aMax) * 0.4);
+  CAM.far = (d - aMin) * 2 + 1;
   CAM.updateProjectionMatrix(); CT.update();
 }
 
@@ -1041,10 +1112,11 @@ function init3(it, view, stat, force){
   const w = Math.max(200, box.clientWidth||box.offsetWidth), h = Math.max(160, box.clientHeight||box.offsetHeight);
   if(!R3){ R3 = new THREE.WebGLRenderer({antialias:true, alpha:true}); R3.setPixelRatio(devicePixelRatio); }
 
-  // 同一个模型：只换尺寸与材质，不重载 OBJ、不动相机
+  // 同一个模型：只换尺寸与材质，不重载 OBJ；但尺寸变了必须重新取景，否则窗口一缩就切边
   if(MESH && MESH.userData.mid === it.id && !force){
     R3.setSize(w,h);
     if(CAM){ CAM.aspect = w/h; CAM.updateProjectionMatrix(); }
+    frameCam(MESH);
     paintMesh(); paintGrid(); draw(); return;
   }
 
