@@ -244,44 +244,86 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .acts button:hover{background:var(--panel-2)}
 .acts button.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
 
-/* ══════════════ 居中查看器 ══════════════ */
-.sheet{position:fixed;inset:0;z-index:80;display:none;background:var(--bg)}
+/* ══════════════ 居中查看器：两侧斜切信息板 + 中间 3D ══════════════
+   信息合计占半屏（两侧各 25%），中间留给模型。
+   两侧面板以内缘为转轴做透视斜切，内缘正对模型，形成浅「V」包住视口。 */
+.sheet{position:fixed;inset:0;z-index:80;display:none;flex-direction:column;background:var(--bg)}
 .sheet.on{display:flex}
-.shview{flex:1;min-width:0;position:relative;display:grid;place-items:center;overflow:hidden}
-.shview canvas{display:block}
-.shtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:10px 12px;z-index:3}
-.shtop .t{font-size:12.5px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;
-  text-overflow:ellipsis;max-width:50%}
-.shtop .sub{font-size:11px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;
+.sheet-top{height:44px;flex:0 0 44px;display:flex;align-items:center;gap:8px;padding:0 12px;
+  border-bottom:1px solid var(--line);background:var(--panel)}
+.sheet-top .t{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-top .sub{font-size:11px;color:var(--text-3);font-family:var(--mono);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
-.shtop .nav{margin-left:auto;display:flex;gap:4px}
-.shhud{position:absolute;left:12px;top:46px;display:flex;gap:4px;flex-wrap:wrap;z-index:3}
+.sheet-top .nav{margin-left:auto;display:flex;gap:4px;flex:0 0 auto}
+
+.sheet-body{flex:1;min-height:0;display:flex;background:var(--panel-2)}
+.pane{width:25%;flex:0 0 25%;min-width:270px;max-width:560px;overflow:auto;background:var(--panel);
+  position:relative;z-index:2}
+.pane-l{border-right:1px solid var(--line);box-shadow:inset -16px 0 22px -20px rgba(0,0,0,.5)}
+.pane-r{border-left:1px solid var(--line);box-shadow:inset 16px 0 22px -20px rgba(0,0,0,.5)}
+.pane-in{padding-bottom:16px;will-change:transform}
+/* 转轴压在内缘：外缘退远、内缘贴在视口边缘 ⇒ 内缘正对模型 */
+.pane-l .pane-in{transform-origin:100% 50%;transform:perspective(1900px) rotateY(-7deg)}
+.pane-r .pane-in{transform-origin:0% 50%;transform:perspective(1900px) rotateY(7deg)}
+
+.stage3{flex:1;min-width:0;position:relative;overflow:hidden;display:grid;place-items:center}
+.stage3 canvas{display:block}
+
+/* 中心上方：贴图排 —— 可点选覆盖，右侧带平铺与亮度 */
+.texbar{position:absolute;left:12px;right:12px;top:10px;z-index:5;display:none;align-items:center;gap:6px;
+  padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:0 6px 20px rgba(0,0,0,.10);overflow-x:auto;overflow-y:hidden}
+.texbar.on{display:flex}
+.tb-chip{height:42px;padding:0 10px;flex:0 0 auto;border-radius:5px;border:1px solid var(--line);
+  background:var(--panel);font-size:11.5px;color:var(--text-2);white-space:nowrap}
+.tb-chip:hover{background:var(--panel-2);color:var(--text)}
+.tb-chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.tb-th{width:42px;height:42px;flex:0 0 auto;padding:0;border-radius:5px;border:1px solid var(--line);
+  overflow:hidden;background:var(--panel-2);position:relative}
+.tb-th img{width:100%;height:100%;object-fit:cover;display:block}
+.tb-th:hover{border-color:var(--text-3)}
+.tb-th.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.tb-th.on::after{content:"";position:absolute;right:2px;top:2px;width:6px;height:6px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 0 1.5px var(--panel)}
+.tb-sep{width:1px;height:26px;background:var(--line);flex:0 0 auto;margin:0 3px}
+.tb-lab{font-size:11px;color:var(--text-3);flex:0 0 auto;white-space:nowrap}
+.tb-none{font-size:11.5px;color:var(--text-3);padding:0 6px}
+.tb-range{width:96px;flex:0 0 auto;accent-color:var(--accent);height:18px}
+
+.hud{position:absolute;left:12px;bottom:12px;z-index:4;display:flex;gap:4px;flex-wrap:wrap}
+.stat{position:absolute;right:12px;bottom:12px;z-index:4;display:none;font-size:11px;color:var(--text-2);
+  background:var(--panel);border:1px solid var(--line);padding:4px 10px;border-radius:5px;
+  font-family:var(--mono);max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat.on{display:block}
+.load3{position:absolute;inset:0;z-index:3;display:none;place-items:center;align-content:center;gap:8px;
+  font-size:12px;color:var(--text-3);background:var(--panel-2)}
+.load3.on{display:grid}
+.load3 .ic{width:22px;height:22px;color:var(--accent);animation:spin 1.1s linear infinite}
+
 .vbtn{height:26px;padding:0 9px;border-radius:5px;font-size:11.5px;color:var(--text-2);
   background:var(--panel);border:1px solid var(--line);display:inline-flex;align-items:center;gap:4px}
 .vbtn:hover{background:var(--panel-2)}
 .vbtn.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.vseg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--panel)}
+.vseg{display:flex;border:1px solid var(--line);border-radius:5px;overflow:hidden;background:var(--panel);flex:0 0 auto}
 .vseg .vbtn{border:0;border-right:1px solid var(--line);border-radius:0}
 .vseg .vbtn:last-child{border-right:0}
-.shstat{position:absolute;left:12px;bottom:12px;font-size:11px;color:var(--text-2);background:var(--panel);
-  border:1px solid var(--line);padding:4px 10px;border-radius:5px;font-family:var(--mono);z-index:3;display:none}
-.shstat.on{display:block}
-.shload{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:8px;
-  font-size:12px;color:var(--text-3);z-index:2}
-.shload .ic{width:22px;height:22px;color:var(--accent);animation:spin 1.1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.shclose{position:absolute;right:10px;top:10px;width:30px;height:30px;border-radius:5px;
-  border:1px solid var(--line);background:var(--panel);display:grid;place-items:center;
-  font-size:16px;color:var(--text-2);z-index:4}
-.shclose:hover{background:var(--panel-2);color:var(--text)}
-.shinfo{width:392px;flex:0 0 392px;background:var(--panel);border-left:1px solid var(--line);overflow:auto}
-.shacts{display:flex;flex-direction:column;gap:6px;padding:10px 12px 16px}
-.shacts .row2{display:flex;gap:6px}
-.shacts button{flex:1;height:32px;border-radius:5px;border:1px solid var(--line);background:var(--panel);
-  display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px}
-.shacts button .ic{width:14px;height:14px}
-.shacts button:hover{background:var(--panel-2)}
-.shacts button.pri{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+
+.tlist{max-height:190px;overflow:auto;border-top:1px solid var(--line-2)}
+.tlist .ti{display:flex;align-items:center;gap:8px;padding:5px 12px;font:400 11px/1.5 var(--mono);
+  color:var(--text-2);border-bottom:1px solid var(--line-2)}
+.tlist .ti:last-child{border-bottom:0}
+.tlist .ti span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+
+@media(max-width:1280px){
+  .pane{min-width:238px}
+  .pane-l .pane-in{transform:perspective(1900px) rotateY(-5deg)}
+  .pane-r .pane-in{transform:perspective(1900px) rotateY(5deg)}
+}
+@media(max-width:1024px){
+  .pane{min-width:0;flex:0 0 30%}
+  .pane-l .pane-in,.pane-r .pane-in{transform:none}
+}
 
 /* ══════════════ 浮层 / 提示 ══════════════ */
 .pop{position:absolute;z-index:60;background:var(--panel);border:1px solid var(--line);
@@ -403,45 +445,54 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 </div>
 
 <div class="sheet" id="sheet">
-  <div class="shview" id="shview">
-    <div class="shtop">
-      <div class="t" id="shT">—</div>
-      <div class="sub" id="shS"></div>
-      <div class="nav">
-        <button class="ib" id="shPrev" data-i="chev" style="transform:rotate(180deg)" title="上一个（←）"></button>
-        <button class="ib" id="shNext" data-i="chev" title="下一个（→）"></button>
-        <button class="ib" id="shFav" data-i="star" title="收藏"></button>
-      </div>
+  <div class="sheet-top">
+    <div class="t" id="shT">—</div>
+    <div class="sub" id="shS"></div>
+    <div class="nav">
+      <button class="ib" id="shPrev" data-i="chev" style="transform:rotate(180deg)" title="上一个（←）"></button>
+      <button class="ib" id="shNext" data-i="chev" title="下一个（→）"></button>
+      <button class="ib" id="shFav" data-i="star" title="收藏"></button>
+      <button class="ib" id="shClose" data-i="close" title="关闭（Esc）"></button>
     </div>
-    <div class="shhud" id="shhud">
-      <div class="vseg">
-        <button class="vbtn on" data-m="solid">实体</button>
-        <button class="vbtn" data-m="wire">线框</button>
-      </div>
-      <button class="vbtn on" data-m="tex">贴图</button>
-      <button class="vbtn" data-m="grid">网格</button>
-      <button class="vbtn" data-m="rot">自动旋转</button>
-      <button class="vbtn" data-m="reset">重置视角</button>
-    </div>
-    <div class="shstat" id="shstat"></div>
-    <div class="shload" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
   </div>
-  <button class="shclose" id="shClose" data-i="close" title="关闭（Esc）"></button>
-  <aside class="shinfo">
-    <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
-    <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
-    <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
-    <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
-    <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
-    <div class="shacts">
-      <button class="pri" id="shOpen"><span data-i="reveal"></span>打开文件位置</button>
-      <div class="row2">
-        <button id="shDl"><span data-i="dl"></span>下载 OBJ</button>
-        <button id="shCopyPath"><span data-i="copy"></span>复制路径</button>
+
+  <div class="sheet-body">
+    <aside class="pane pane-l"><div class="pane-in">
+      <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
+      <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
+      <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
+    </div></aside>
+
+    <div class="stage3" id="shview">
+      <div class="texbar" id="texbar"></div>
+      <div class="hud" id="shhud">
+        <div class="vseg">
+          <button class="vbtn on" data-m="solid">实体</button>
+          <button class="vbtn" data-m="wire">线框</button>
+        </div>
+        <button class="vbtn on" data-m="tex">贴图</button>
+        <button class="vbtn" data-m="grid">网格</button>
+        <button class="vbtn" data-m="rot">自动旋转</button>
+        <button class="vbtn" data-m="reset">重置视角</button>
       </div>
-      <button id="shCopyInfo"><span data-i="copy"></span>复制资产信息</button>
+      <div class="stat" id="shstat"></div>
+      <div class="load3" id="shload"><div><span data-i="sync" class="ic"></span></div><div>载入 3D 引擎…</div></div>
     </div>
-  </aside>
+
+    <aside class="pane pane-r"><div class="pane-in">
+      <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
+      <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
+      <div class="sec" style="padding:10px 12px 12px">
+        <button class="pri" id="shOpen" style="width:100%;height:34px;border-radius:5px;border:1px solid var(--accent);background:var(--accent);color:#fff;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12.5px">
+          <span data-i="reveal"></span>打开文件位置</button>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="ib" id="shDl" data-i="dl" title="下载 OBJ" style="flex:1;height:32px;width:auto"></button>
+          <button class="ib" id="shCopyPath" data-i="copy" title="复制路径" style="flex:1;height:32px;width:auto"></button>
+          <button class="ib" id="shCopyInfo" data-i="info" title="复制资产信息" style="flex:1;height:32px;width:auto"></button>
+        </div>
+      </div>
+    </div></aside>
+  </div>
 </div>
 
 <div class="pop" id="pop"></div>
@@ -707,31 +758,43 @@ function status(){
 /* ─────────── 详情（右侧停靠 + 居中查看器共用） ─────────── */
 function row(k,v,cls){ return '<div class="r"><span class="k">'+k+'</span><span class="v '+(cls||'')+'">'+v+'</span></div>'; }
 function chip(c,text){ return '<span class="chip"><i class="d" style="background:'+c+'"></i>'+text+'</span>'; }
-function fillInfo(root, it){
+function fillInfo(root, it, withThumbs){
+  /* 停靠面板与查看器共用：字段按目标面板各取所需，缺失的区块直接跳过。
+     withThumbs=false 时不出图片网格（查看器把缩略图放进了顶部贴图排）。 */
   const q = s => root.querySelector('.js-'+s);
   const k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96'];
-  q('kind').innerHTML = chip(gm[1], gm[0]) + chip(k[1], k[0]) + (it.f&&it.f!==gm[0]&&it.f!==k[0] ? chip('#8E8E96', it.f) : '');
-  q('ident').innerHTML =
+  const kind = q('kind');
+  if(kind) kind.innerHTML = chip(gm[1], gm[0]) + chip(k[1], k[0])
+    + (it.f && it.f!==gm[0] && it.f!==k[0] ? chip('#8E8E96', it.f) : '');
+  const ident = q('ident');
+  if(ident) ident.innerHTML =
     row('显示名', it.dn) + row('文件名', it.n+'.obj', 'mono') +
     (it.rn && it.rn !== it.dn ? row('资源原名', it.rn, 'mono') : '') +
     row('原始目录', it.c||'—', 'mono') + row('相对路径', it.p, 'mono') +
     (it.dup != null ? row('重复项', '与 #'+it.dup+' 同名', 'mono warn') : '');
   const MAXF = 20000;
-  setT(q('geo-note'), '');
-  q('geo').innerHTML =
+  const gnote = q('geo-note'); if(gnote) setT(gnote, '');
+  const geo = q('geo');
+  if(geo) geo.innerHTML =
     row('顶点', nf(it.v)) + row('三角面', nf(it.fa)) +
     row('包围盒', dim(it.x)+' × '+dim(it.y)+' × '+dim(it.z)) +
     row('文件大小', kb(it.s)) +
     '<div class="bar"><i style="width:'+Math.min(100,(it.fa/MAXF*100)).toFixed(1)+'%;background:'+k[1]+'"></i></div>'+
     '<div class="note">面数刻度满格 '+nf(MAXF)+'，用于横向比较模型成本</div>';
-  setT(q('tex-n'), it.tn ? it.tn+' 张' : '无');
+  const texN = q('tex-n'); if(texN) setT(texN, it.tn ? it.tn+' 张' : '无');
   const roles = (it.tr||[]).map(r=>chip(k[1], ROLE_CN[r]||r)).join('');
-  q('tex').innerHTML = (it.tl && it.tl.length)
-    ? '<div class="texs">'+it.tl.slice(0,12).map(t=>'<div class="tw"><img loading="lazy" src="'+enc(t)+'"><span>'+t.split('/').pop()+'</span></div>').join('')+'</div>'+
+  const tex = q('tex');
+  if(tex) tex.innerHTML = (it.tl && it.tl.length)
+    ? ((withThumbs === false) ? '' :
+        '<div class="texs">'+it.tl.slice(0,12).map(t=>'<div class="tw"><img loading="lazy" src="'+enc(t)+'"><span>'+t.split('/').pop()+'</span></div>').join('')+'</div>')+
       (roles ? '<div class="chips">'+roles+'</div>' : '')+
+      ((withThumbs === false)
+        ? '<div class="tlist">'+it.tl.slice(0,40).map(t=>'<div class="ti"><span>'+t.split('/').pop()+'</span></div>').join('')+'</div>'
+        : '')+
       '<div class="note">来源：'+(it.tq===1?'旧清单精确映射':it.tq===2?'文件名前缀推断':'—')+'</div>'
     : '<div class="note" style="padding:8px 12px">无关联贴图</div>';
-  q('tags').innerHTML = (it.tg||[]).map(t=>chip(t==='dup'||t==='empty'||t==='big'?'#B26A00':'#8E8E96', TAG_CN[t]||t)).join('')
+  const tags = q('tags');
+  if(tags) tags.innerHTML = (it.tg||[]).map(t=>chip(t==='dup'||t==='empty'||t==='big'?'#B26A00':'#8E8E96', TAG_CN[t]||t)).join('')
     || '<span style="font-size:11.5px;color:var(--text-3)">（无）</span>';
 }
 
@@ -781,44 +844,167 @@ function loadThree(){
   loadThree.p = one('_res/three.min.js').then(()=>one('_res/OBJLoader.js')).then(()=>one('_res/OrbitControls.js'));
   return loadThree.p;
 }
-const viewer3 = {view:null, stat:null};
+/* ─────────── 居中查看器：贴图排 + 3D ─────────── */
+/* 贴图状态：path=当前覆盖的贴图（null=原始材质），tex=已加载的 THREE.Texture，
+   tile=平铺倍数，bright=亮度倍率（乘在材质基色上） */
+const TEX = {path:null, tex:null, tile:1, bright:1};
+let MATS = null;
+
+function ensureMats(){
+  if(MATS) return MATS;
+  MATS = {std: new THREE.MeshStandardMaterial({color:0xb6b6bc, roughness:.78, metalness:.04,
+    side:THREE.DoubleSide})};
+  return MATS;
+}
+
+/* 把当前模式（线框/贴图/亮度）刷到已有网格上——不重新加载 OBJ，视角不丢 */
+function paintMesh(){
+  if(!MESH) return;
+  const std = ensureMats().std;
+  const map = (MODE.tex && TEX.path && TEX.tex) ? TEX.tex : null;
+  std.map = map;
+  std.wireframe = MODE.wire;
+  std.color.setScalar((map ? 1 : 0.72) * TEX.bright);
+  std.needsUpdate = true;
+  MESH.traverse(n=>{ if(n.isMesh) n.material = std; });
+}
+
+/* 地面网格：按模型尺度取整数格距，贴在包围盒底面上 */
+function paintGrid(){
+  if(!SC || !MESH) return;
+  if(GRID){ SC.remove(GRID); GRID.geometry.dispose(); GRID = null; }
+  if(!MODE.grid) return;
+  const bb = new THREE.Box3().setFromObject(MESH);
+  const sp = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+  const r = Math.max(sp.x, sp.y, sp.z) || 1;
+  const gs = Math.pow(10, Math.round(Math.log10(r)*2 - 1)/2) * 2;
+  GRID = new THREE.GridHelper(gs, 20, 0x8a8a92, 0xc2c2c8);
+  GRID.material.opacity = .5; GRID.material.transparent = true;
+  GRID.position.set(c.x, bb.min.y, c.z);
+  SC.add(GRID);
+}
+
+function markTex(){
+  const bar = $('texbar');
+  bar.querySelectorAll('.tb-th').forEach(b=>b.classList.toggle('on', !!TEX.path && b.dataset.t===TEX.path));
+  bar.querySelectorAll('.tb-chip').forEach(b=>b.classList.toggle('on', !TEX.path));
+}
+function markTile(){
+  $('texbar').querySelectorAll('[data-tile]').forEach(b=>b.classList.toggle('on', +b.dataset.tile===TEX.tile));
+}
+
+/* 点贴图即覆盖：换成该贴图；点「原始材质」还原 */
+function applyTex(path){
+  if(TEX.tex){ TEX.tex.dispose(); TEX.tex = null; }
+  TEX.path = path || null;
+  if(!path || !window.THREE){ paintMesh(); markTex(); return; }
+  new THREE.TextureLoader().load(enc(path), t=>{
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(TEX.tile, TEX.tile);
+    TEX.tex = t; paintMesh(); markTex();
+  }, undefined, ()=>{
+    TEX.path = null; TEX.tex = null; paintMesh(); markTex();
+    toast('贴图加载失败：'+path.split('/').pop());
+  });
+}
+function applyTiling(){
+  if(TEX.tex){
+    TEX.tex.wrapS = TEX.tex.wrapT = THREE.RepeatWrapping;
+    TEX.tex.repeat.set(TEX.tile, TEX.tile);
+    TEX.tex.needsUpdate = true;
+  }
+  paintMesh();
+}
+
+/* 中心上方那一排：原始材质 + 贴图缩略图（可点选覆盖）+ 平铺 + 亮度 */
+function buildTexBar(it){
+  const bar = $('texbar');
+  const list = (it.tl || []).slice(0, 24);
+  TEX.tex = null; TEX.tile = 1; TEX.bright = 1;
+  TEX.path = list.length ? list[0] : null;      // 默认挂第一张，随时可点别的覆盖
+
+  let h = '<button class="tb-chip" data-t="">原始材质</button>';
+  h += list.map(t=>'<button class="tb-th" data-t="'+t.replace(/"/g,'&quot;')+'" title="'+t.split('/').pop()+'">'+
+        '<img loading="lazy" src="'+enc(t)+'" alt=""></button>').join('');
+  if(!list.length) h += '<span class="tb-none">该模型无关联贴图，可切线框/网格查看结构</span>';
+  h += '<span class="tb-sep"></span><span class="tb-lab">平铺</span><div class="vseg">'+
+       [1,2,4].map(n=>'<button class="vbtn'+(n===1?' on':'')+'" data-tile="'+n+'">×'+n+'</button>').join('')+'</div>'+
+       '<span class="tb-sep"></span><span class="tb-lab">亮度</span>'+
+       '<input class="tb-range" id="tbBright" type="range" min="0.3" max="1.6" step="0.05" value="1" title="材质亮度">';
+  bar.innerHTML = h;
+  bar.classList.add('on');
+  bar.onclick = e=>{
+    const th = e.target.closest('.tb-th'), chip = e.target.closest('.tb-chip'), tl = e.target.closest('[data-tile]');
+    if(th){ applyTex(th.dataset.t); return; }
+    if(chip){ applyTex(null); return; }
+    if(tl){ TEX.tile = +tl.dataset.tile; markTile(); applyTiling(); }
+  };
+  const r = bar.querySelector('#tbBright');
+  if(r) r.oninput = ()=>{ TEX.bright = +r.value; paintMesh(); };
+  markTex(); markTile();
+}
+
 function openViewer(){
   if(!S.cur) return;
-  renderTok++; threeOn = false; MESH = null; CT = null; GRID = null;
-  MODE = {wire:false, tex:true, rot:false, grid:false};
   const it = S.cur, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96'];
+  renderTok++; threeOn = false; MESH = null; CT = null; GRID = null; MATS = null;
+  MODE = {wire:false, tex:true, rot:false, grid:false};
   const sheet = $('sheet');
   sheet.classList.add('on');
   setT($('shT'), it.dn); $('shT').title = it.dn;
-  setT($('shS'), gm[0]+' · '+k[0]+(it.f?' · '+it.f:''));
+  setT($('shS'), gm[0]+' · '+k[0]+(it.f?' · '+it.f:'')+' · '+nf(it.fa)+' 三角面');
   $('shFav').classList.toggle('on', S.fav.has(it.id));
-  fillInfo(sheet, it);
-  viewer3.view = $('shview'); viewer3.stat = $('shstat');
-  $('shhud').onclick = e=>{ const b = e.target.closest('.vbtn'); if(b) hud3(b.dataset.m); };
-  hud3(null);
+  fillInfo(sheet, it, false);
+  buildTexBar(it);
+  paintHud();
+  const old = $('shview').querySelector('canvas'); if(old) old.remove();
+  $('shstat').classList.remove('on');
+  $('shload').classList.add('on');
   setTimeout(()=>{
     loadThree().then(()=>{
-      const l = $('shload'); if(l) l.remove();
+      $('shload').classList.remove('on');
       $('shstat').classList.add('on');
-      init3(it, viewer3.view, viewer3.stat);
-    }).catch(()=>{ const l=$('shload'); if(l) l.innerHTML = '<div>3D 库加载失败</div>'; });
+      init3(it, $('shview'), $('shstat'), true);
+    }).catch(()=>{ $('shload').innerHTML = '<div>3D 库加载失败</div>'; });
   }, 30);
 }
 function closeViewer(){
   $('sheet').classList.remove('on');
-  renderTok++; threeOn = false; MESH = null; CT = null; GRID = null;
+  $('texbar').classList.remove('on');
+  renderTok++; threeOn = false; MESH = null; CT = null; GRID = null; MATS = null;
+  if(TEX.tex){ TEX.tex.dispose(); TEX.tex = null; }
   const c = $('shview').querySelector('canvas'); if(c) c.remove();
   $('shstat').classList.remove('on');
 }
-function init3(it, view, stat){
+
+/* 相机按包围盒重新取景（不重建模型） */
+function frameCam(o){
+  const bb = new THREE.Box3().setFromObject(o);
+  const sp = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
+  const r = Math.max(sp.x, sp.y, sp.z) || 1;
+  CAM.position.set(c.x + r*1.45, c.y + r*0.95, c.z + r*1.45);
+  CT.target.copy(c);
+  CAM.near = r/100; CAM.far = r*150;
+  CAM.updateProjectionMatrix(); CT.update();
+}
+
+function init3(it, view, stat, force){
   threeOn = true;
   const box = view;
+  const w = Math.max(200, box.clientWidth||box.offsetWidth), h = Math.max(160, box.clientHeight||box.offsetHeight);
+  if(!R3){ R3 = new THREE.WebGLRenderer({antialias:true, alpha:true}); R3.setPixelRatio(devicePixelRatio); }
+
+  // 同一个模型：只换尺寸与材质，不重载 OBJ、不动相机
+  if(MESH && MESH.userData.mid === it.id && !force){
+    R3.setSize(w,h);
+    if(CAM){ CAM.aspect = w/h; CAM.updateProjectionMatrix(); }
+    paintMesh(); paintGrid(); draw(); return;
+  }
+
   const old = box.querySelector('canvas'); if(old) old.remove();
-  const w = Math.max(200, box.clientWidth), h = Math.max(160, box.clientHeight);
-  if(!R3){ R3 = new THREE.WebGLRenderer({antialias:true,alpha:true}); R3.setPixelRatio(devicePixelRatio); }
   R3.setSize(w,h);
   box.appendChild(R3.domElement);
-
   SC = new THREE.Scene();
   CAM = new THREE.PerspectiveCamera(40, w/h, .01, 1000);
   CT = new THREE.OrbitControls(CAM, R3.domElement);
@@ -828,28 +1014,13 @@ function init3(it, view, stat){
   const fil = new THREE.DirectionalLight(0xffffff,.26); fil.position.set(-2,-1,-2); SC.add(fil);
 
   new THREE.OBJLoader().load(enc(it.p), o=>{
-    const diff = (it.tr||[]).indexOf('diffuse') >= 0 && it.tl && it.tl[0] ? it.tl[0] : null;
-    const apply = tex => o.traverse(m=>{ if(m.isMesh){
-      m.material = GRID
-        ? new THREE.MeshBasicMaterial({color:0x9aa0a6, wireframe:true})
-        : new THREE.MeshStandardMaterial({color: tex?0xffffff:0xb6b6bc, roughness:.78, metalness:.04,
-            map: tex||null, wireframe: MODE.wire, side: THREE.DoubleSide});
-    }});
-    const finish = ()=>{
-      const bb = new THREE.Box3().setFromObject(o);
-      const sp = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
-      const r = Math.max(sp.x,sp.y,sp.z)||1;
-      CAM.position.set(c.x+r*1.45, c.y+r*0.95, c.z+r*1.45);
-      CT.target.copy(c);
-      CAM.near = r/100; CAM.far = r*150; CAM.updateProjectionMatrix(); CT.update();
-      MESH = o; SC.add(o);
-      setT(stat, nf(it.v)+' 顶点 · '+nf(it.fa)+' 三角面 · '+kb(it.s)+' · '+dim(it.x)+' × '+dim(it.y)+' × '+dim(it.z));
-      draw();
-    };
-    if(diff && MODE.tex && !GRID){
-      new THREE.TextureLoader().load(enc(diff), t=>{ t.colorSpace = THREE.SRGBColorSpace; apply(t); finish(); },
-        undefined, ()=>{ apply(null); finish(); });
-    } else { apply(null); finish(); }
+    o.userData.mid = it.id;
+    MESH = o; SC.add(o);
+    frameCam(o);
+    paintMesh(); paintGrid(); draw();
+    setT(stat, nf(it.v)+' 顶点 · '+nf(it.fa)+' 三角面 · '+kb(it.s)+' · '+
+      dim(it.x)+' × '+dim(it.y)+' × '+dim(it.z));
+    if(TEX.path) applyTex(TEX.path);      // 默认挂上漫反射，可随时点别的覆盖
   }, undefined, ()=>{ setT(stat, '解析失败'); });
 }
 function draw(){
@@ -862,17 +1033,19 @@ function draw(){
   })();
 }
 function hud3(m){
-  if(m==='reset'){ MODE = {wire:false, tex:true, rot:false, grid:false};
-    paintHud(); if(threeOn&&S.cur) init3(S.cur, viewer3.view, viewer3.stat); return; }
-  if(m==='wire'){ MODE.wire = !MODE.wire; if(MODE.wire) MODE.grid = false; }
+  if(m==='reset'){
+    MODE = {wire:false, tex:true, rot:false, grid:false};
+    paintHud();
+    if(threeOn && S.cur && MESH){ frameCam(MESH); paintMesh(); paintGrid(); draw(); }
+    return;
+  }
+  if(m==='wire'){ MODE.wire = !MODE.wire; }
   else if(m==='grid'){ MODE.grid = !MODE.grid; }
   else if(m==='rot'){ MODE.rot = !MODE.rot; }
   else if(m==='tex'){ MODE.tex = !MODE.tex; }
   paintHud();
-  if(MESH) MESH.traverse(n=>{ if(n.isMesh && n.material && n.material.wireframe !== undefined)
-    n.material.wireframe = MODE.wire; });
+  paintMesh(); paintGrid();
   if(CT) CT.autoRotate = MODE.rot;
-  if(m==='wire'||m==='grid'||m==='tex'){ if(threeOn&&S.cur) init3(S.cur, viewer3.view, viewer3.stat); }
 }
 function paintHud(){
   MODE.solid = !MODE.wire;
@@ -882,6 +1055,7 @@ function paintHud(){
       : k==='tex'?MODE.tex : k==='grid'?MODE.grid : k==='rot'?MODE.rot : false);
   });
 }
+$('shhud').onclick = e=>{ const b = e.target.closest('.vbtn'); if(b) hud3(b.dataset.m); };
 $('shClose').onclick = closeViewer;
 $('shPrev').onclick = ()=>{ if(S.idx>0){ open(S.idx-1); openViewer(); } };
 $('shNext').onclick = ()=>{ if(S.idx<S.view.length-1){ open(S.idx+1); openViewer(); } };

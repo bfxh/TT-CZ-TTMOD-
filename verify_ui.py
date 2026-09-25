@@ -73,18 +73,56 @@ setTimeout(function(){
     openViewer();
     setTimeout(function(){
       var o=[], cv=document.querySelector('#shview canvas');
+      var pans=document.querySelectorAll('.pane');
+      var vw=innerWidth;
+      function skew(el){ return getComputedStyle(el.querySelector('.pane-in')).transform; }
       o.push('查看器 '+(document.querySelector('#sheet').classList.contains('on')?'打开':'关闭'));
       o.push('canvas '+(cv?Math.round(cv.getBoundingClientRect().width)+'×'+Math.round(cv.getBoundingClientRect().height):'未创建'));
+      o.push('信息板数量 '+pans.length+
+        ' / 宽度 '+[].map.call(pans,function(p){return (p.getBoundingClientRect().width/vw*100).toFixed(1)+'%'}).join(',')+
+        ' / 合计 '+(pans.length?((pans[0].getBoundingClientRect().width+pans[pans.length-1].getBoundingClientRect().width)/vw*100).toFixed(1)+'%':'-'));
+      o.push('左板斜切 '+(pans.length?skew(pans[0]):'-'));
+      o.push('右板斜切 '+(pans.length>1?skew(pans[1]):'-'));
+      var ths=document.querySelectorAll('#texbar .tb-th');
+      o.push('贴图排 '+(document.querySelector('#texbar').classList.contains('on')?'显示':'隐藏')+
+        ' · 缩略图 '+ths.length+' · 原始材质钮 '+document.querySelectorAll('#texbar .tb-chip').length+
+        ' · 平铺档 '+[].map.call(document.querySelectorAll('#texbar [data-tile]'),function(b){return b.textContent}).join('')+
+        ' · 亮度滑杆 '+(document.querySelector('#tbBright')?'有':'无'));
+      o.push('默认覆盖 '+TEX.path+' / 高亮项 '+document.querySelectorAll('#texbar .tb-th.on').length);
+      // 点第二张贴图 → 覆盖应当切换
+      if(ths.length>1){
+        ths[1].click();
+        o.push('点第 2 张贴图后 TEX.path='+TEX.path.split('/').pop()+
+          ' / 高亮项 '+document.querySelectorAll('#texbar .tb-th.on').length);
+      }
+      document.querySelector('#texbar .tb-chip').click();
+      o.push('点「原始材质」后 TEX.path='+TEX.path+' / 高亮 chip '+document.querySelectorAll('#texbar .tb-chip.on').length);
+      var tile2=document.querySelectorAll('#texbar [data-tile]')[1];
+      if(tile2){ tile2.click(); o.push('点平铺 ×2 后 TEX.tile='+TEX.tile); }
       o.push('HUD '+[].map.call(document.querySelectorAll('#shhud .vbtn'),function(b){return b.textContent}).join(' / '));
       o.push('状态行 '+document.querySelector('#shstat').textContent);
-      o.push('右侧字段 '+['显示名','顶点','三角面','包围盒','文件大小','贴图','标记']
-        .filter(function(t){ return document.querySelector('.shinfo').textContent.indexOf(t)>=0; }).join(' / '));
+      o.push('左板字段 '+['显示名','文件名','原始目录','相对路径','贴图','来源']
+        .filter(function(t){ return pans[0].textContent.indexOf(t)>=0; }).join(' / '));
+      o.push('右板字段 '+['顶点','三角面','包围盒','文件大小','标记','打开文件位置']
+        .filter(function(t){ return pans[1].textContent.indexOf(t)>=0; }).join(' / '));
+      o.push('JS 错误 '+(window.__errs&&window.__errs.length?window.__errs.join(';'):'无'));
       try{ fetch('/diag',{method:'POST',body:o.join('\n')}); }catch(e){}
     },7000);
   },500);
 },3200);
 </script>
 </body>"""
+
+
+def warm(prof):
+    """全新 profile 直接跑 --headless=new 会静默不出结果（首启初始化吃掉虚拟时间预算），
+    先空跑一次捂热；已存在的 profile 直接跳过。"""
+    if os.path.isdir(prof):
+        return
+    subprocess.run([EDGE, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
+                    '--user-data-dir=' + prof, '--window-size=800,600',
+                    '--virtual-time-budget=3000', 'about:blank'],
+                   capture_output=True, timeout=180)
 
 
 def run(name, probe, budget, shot=None):
@@ -95,6 +133,7 @@ def run(name, probe, budget, shot=None):
     with open(tmp, 'w', encoding='utf-8') as fh:
         fh.write(src)
     prof = os.path.join(TEMP, '_vh_' + name)          # 保留 profile，不要删
+    warm(prof)
     cmd = [EDGE, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
            '--disable-extensions', '--hide-scrollbars', '--enable-unsafe-swiftshader',
            '--user-data-dir=' + prof, '--window-size=1680,1000',
@@ -130,17 +169,12 @@ def ascii_map(path, cw=88, ch=38):
 
 
 def regions(path):
-    """分区墨迹率：判断版面各区域到底有没有内容（模型读不了图，只能量化）"""
+    """分区墨迹率：判断版面各区域到底有没有内容（模型读不了图，只能量化）。
+    查看器是「两侧信息板 + 中间 3D」三段式，所以按 2%/23%/50%/77%/98% 取样。"""
     with Image.open(path) as raw:
         rgb = np.asarray(raw.convert('RGB'), dtype=np.int16)
     h, w = rgb.shape[:2]
     kb_size = os.path.getsize(path) / 1024
-
-    def ink(x0, y0, x1, y1, step=3):
-        blk = rgb[y0:y1:step, x0:x1:step]
-        if blk.size == 0:
-            return 0.0
-        return float((blk < 205).any(axis=2).mean())
 
     def avg(x0, y0, x1, y1, step=4):
         blk = rgb[y0:y1:step, x0:x1:step]
@@ -149,17 +183,27 @@ def regions(path):
         m = blk.reshape(-1, 3).mean(axis=0)
         return (int(m[0]), int(m[1]), int(m[2]))
 
-    right = int(w * (0.52 if kb_size < 200000 else 0.72))
+    def p(f):
+        return int(w * f)
+
+    # 信息板内容只占上半截，用「墨迹率」会被下方留白稀释成假空白；
+    # 所以这里同时给绝对暗像素数，两个口径一起看。
+    def dark(x0, y0, x1, y1):
+        blk = rgb[y0:y1, x0:x1]
+        return int((blk < 200).any(axis=2).sum()) if blk.size else 0
+
     return ('尺寸 %d×%d  %.0f KB\n'
-            '   左轨道区(0-48)      墨迹 %.3f  均色 %s\n'
-            '   主内容区            墨迹 %.3f  均色 %s\n'
-            '   顶栏(0-44)          墨迹 %.3f\n'
-            '   右侧面板(右 392)    墨迹 %.3f') % (
+            '   左信息板  暗像素 %6d 千色 %s\n'
+            '   中间 3D    暗像素 %6d\n'
+            '   右信息板  暗像素 %6d 千色 %s\n'
+            '   顶栏       暗像素 %6d\n'
+            '   贴图排     暗像素 %6d') % (
         w, h, kb_size,
-        ink(0, 60, 46, h - 30), avg(10, 200, 40, h - 200),
-        ink(60, 130, right, h - 40), avg(200, 900, 1000, 990),
-        ink(0, 0, w, 42),
-        ink(w - 392, 60, w - 4, h - 40))
+        dark(p(.02), 44, p(.24), h - 30), avg(p(.05), 60, p(.2), 340),
+        dark(p(.27), 130, p(.73), h - 40),
+        dark(p(.76), 44, p(.98), h - 30), avg(p(.80), 60, p(.95), 340),
+        dark(0, 0, w, 42),
+        dark(p(.27), 56, p(.73), 112))
 
 
 os.makedirs(SHOT, exist_ok=True)
