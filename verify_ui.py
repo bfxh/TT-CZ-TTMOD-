@@ -43,25 +43,48 @@ setTimeout(function(){
     (holes.length?' → '+holes.slice(0,6).join(','):''));
   // 会影响文字清晰度的样式（合成层/重采样源头）
   var bad=[];
-  ['.ov','.ovp','.pane-l .pane-in','.pane-r .pane-in'].forEach(function(sel){
+  ['.ov','.ovp','.pane-l','.pane-r'].forEach(function(sel){
     var e=document.querySelector(sel); if(!e) return;
     var c=getComputedStyle(e);
     if(c.backdropFilter && c.backdropFilter!=='none') bad.push(sel+' backdrop-filter');
     if(c.willChange && c.willChange!=='auto') bad.push(sel+' will-change='+c.willChange);
     if(c.filter && c.filter!=='none') bad.push(sel+' filter');
   });
+  // 斜切必须用 clip-path 做外形，不能真 3D 旋转 —— 实测 rotateY 把文字锐度砍到 35%
+  var tilted=[];
+  ['.pane-l .pane-in','.pane-r .pane-in'].forEach(function(sel){
+    var e=document.querySelector(sel); if(!e) return;
+    if(getComputedStyle(e).transform!=='none') tilted.push(sel);
+  });
+  var clipped=['.pane-l','.pane-r'].filter(function(sel){
+    var e=document.querySelector(sel);
+    return e && getComputedStyle(e).clipPath!=='none';
+  });
   var anim=getComputedStyle(document.querySelector('.ovp')).animationName;
-  var kf=(document.styleSheets.length && (function(){
+  var kf=(function(){
     for(var i=0;i<document.styleSheets.length;i++){
       var rs; try{ rs=document.styleSheets[i].cssRules; }catch(e){ continue; }
-      for(var j=0;j<rs.length;j++){
-        if(rs[j].type===7 && rs[j].name===anim) return rs[j].cssText;
-      }
+      for(var j=0;j<rs.length;j++){ if(rs[j].type===7 && rs[j].name===anim) return rs[j].cssText; }
     }
     return '';
-  })()) || '';
+  })();
   out.push('清晰度隐患：'+(bad.length?bad.join(' / '):'无')+
+    ' · 斜切实现 '+(tilted.length?('真 3D 旋转 ← 会糊 '+tilted.join(',')):('clip-path 外形 '+clipped.length+' 块，文字 1:1'))+
     ' · 入场动画 ['+anim+'] '+(/scale/.test(kf)?'含 scale ← 会整体重采样':'只动 opacity'));
+  // 头部控件绝对不许藏（曾经用媒体查询 display:none 静默消失）
+  var hidden=[];
+  ['#dens','#btnDup','#btnStats','.sbox','#view','#btnSort','#th'].forEach(function(sel){
+    var e=document.querySelector(sel);
+    if(!e) { hidden.push(sel+' 不存在'); return; }
+    var c=getComputedStyle(e), r=e.getBoundingClientRect();
+    if(c.display==='none') hidden.push(sel+' display:none');
+    else if(r.width<1) hidden.push(sel+' 宽度 0');
+    else if(c.visibility==='hidden') hidden.push(sel+' visibility');
+  });
+  var topEl=document.querySelector('.top');
+  out.push('头部控件 '+7+' 项 · 被隐藏 '+hidden.length+(hidden.length?' → '+hidden.join(','):'')+
+    ' · 头部 scrollW '+topEl.scrollWidth+' clientW '+topEl.clientWidth+
+    (topEl.scrollWidth>topEl.clientWidth+1?'（可横向滚动，控件没丢）':''));
   out.push('头部：'+[].map.call(document.querySelectorAll('.top .seg button,.top .tbtn,.top .ib'),
     function(b){return b.textContent.trim()||b.title}).join(' / '));
   out.push('没有排序条（.mbar 应为 0）：'+document.querySelectorAll('.mbar').length+
