@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>资产库 · 三游戏统一资产库</title>
 <script>try{document.documentElement.dataset.theme=localStorage.getItem('av_theme')||'light'}catch(e){}</script>
-<script src="_res/icons.js"></script>
+<script src="_res/icons.js?v=7"></script>
 <style>
 /* ══════════════ 令牌 ══════════════
    一套灰阶 + 单一强调色。颜色只出现在「类型点 / 游戏点 / 状态」，
@@ -933,7 +933,7 @@ function loadThree(){
   if(loadThree.p) return loadThree.p;
   const one = s => new Promise((res,rej)=>{ const e=document.createElement('script');
     e.src=s; e.onload=res; e.onerror=()=>rej(new Error(s)); document.head.appendChild(e); });
-  loadThree.p = one('_res/three.min.js').then(()=>one('_res/OBJLoader.js')).then(()=>one('_res/OrbitControls.js'));
+  loadThree.p = one('_res/three.min.js?v=7').then(()=>one('_res/OBJLoader.js?v=7')).then(()=>one('_res/OrbitControls.js?v=7'));
   return loadThree.p;
 }
 /* ─────────── 居中查看器：贴图排 + 3D ─────────── */
@@ -1050,6 +1050,9 @@ function openViewer(){
   $('shFav').classList.toggle('on', S.fav.has(it.id));
   fillInfo(ov, it, false);
   buildTexBar(it);
+  // 再画一次：万一首次绘制（页面加载时 .ov 还是 display:none）有遗漏，
+  // 这里会补上 —— PAINT_ICONS 只补没画好的，不会重复劳动
+  PAINT_ICONS(ov);
   paintHud();
   setSel();
   const old = $('shview').querySelector('canvas'); if(old) old.remove();
@@ -1401,19 +1404,37 @@ function showDiag(){
     const r = e.getBoundingClientRect(), c = getComputedStyle(e);
     const noPix = c.display==='none' || c.visibility==='hidden' || r.width<1 || r.height<1;
     const shouldShow = want ? want() : true;
+    // 图标健康度：占位是否真的画出了 <use>，指向的符号是否存在
+    const ph = e.querySelectorAll('[data-i]');
+    let ic = '', badIc = 0;
+    if(ph.length){
+      ph.forEach(x=>{
+        const u = x.querySelector('svg use');
+        const href = u ? (u.getAttribute('href')||'') : '';
+        if(!href || !document.getElementById(href.replace('#',''))) badIc++;
+      });
+      ic = '  图标 ' + (ph.length - badIc) + '/' + ph.length + (badIc ? '  ★有 ' + badIc + ' 个没画' : '');
+      if(badIc) bad++;
+    }
     let mark;
     if(noPix && !shouldShow) mark = '○ ' + n.padEnd(16) + ' 按需显示（此刻未触发）';
     else if(noPix){ mark = '✗ ' + n.padEnd(16) + ' 本该显示却没了　display:' + c.display; bad++; }
     else mark = '✓ ' + n.padEnd(16) + String(Math.round(r.width)+'×'+Math.round(r.height)).padStart(10) +
       '  display:' + c.display;
-    return mark;
+    return mark + ic;
   });
   const box = document.createElement('pre');
   box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#111;'+
     'font:12px/1.75 ui-monospace,Consolas,monospace;padding:18px 20px;overflow:auto;white-space:pre-wrap;margin:0';
+  const spr = document.getElementById('isprite');
   box.textContent = '界面自检　' + (bad ? '发现 ' + bad + ' 项异常' : '全部正常') + '\n' +
     '视口 ' + innerWidth + '×' + innerHeight + '　DPR ' + devicePixelRatio +
     '　浏览器缩放约 ' + ((outerWidth/innerWidth)*100).toFixed(0) + '%\n' +
+    '符号雪碧：' + (spr ? spr.querySelectorAll('symbol').length + ' 个符号' : '★ 不存在') +
+    '　图标定义数 ' + Object.keys(window.ICONS||{}).length +
+    '　全站图标 ' + document.querySelectorAll('svg.ic').length +
+    ' 个（未画好 ' + [].filter.call(document.querySelectorAll('svg.ic'),function(s){
+        var u=s.querySelector('use'); return !u || !u.getAttribute('href'); }).length + ' 个）\n' +
     '提示：换几个窗口宽度刷新本页，看哪一项会变成 ✗\n\n' +
     rows.join('\n') + '\n\n把这张截图发我即可。';
   document.body.appendChild(box);

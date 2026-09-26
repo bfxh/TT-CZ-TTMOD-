@@ -89,12 +89,21 @@ window.SVGICON = function (n, cls, style) {
   return '<svg class="ic' + (cls ? ' ' + cls : '') + '"' + (style ? ' style="' + style + '"' : '') +
     ' aria-hidden="true"><use href="' + window.IREF(n) + '"/></svg>';
 };
-/* 把文档里所有 [data-i] 占位替换成符号 */
+/* 把文档里所有 [data-i] 占位替换成符号。
+   注意两点（都是踩过坑的）：
+   ① 判定「已画好」要同时看 data-painted **和** 里面真的有 svg ——
+      只信 data-painted 的话，一次失败的绘制会被永久记为已完成，再也不会补；
+   ② 图标名不存在时不写 data-painted，留给下一次调用重试，并把名字报出来。 */
 window.PAINT_ICONS = function (root) {
   window.buildSprite();
+  var missing = [];
   (root || document).querySelectorAll('[data-i]').forEach(function (e) {
-    if (e.dataset.painted) return;
-    e.innerHTML = window.SVGICON(e.dataset.i);
+    if (e.dataset.painted && e.querySelector('svg')) return;
+    var html = window.SVGICON(e.dataset.i);
+    if (!html) { missing.push(e.dataset.i); return; }
+    e.innerHTML = html;
     e.dataset.painted = '1';
   });
+  if (missing.length) console.warn('[icons] 未知图标名，未能绘制：', missing.join(', '));
+  return missing;
 };
