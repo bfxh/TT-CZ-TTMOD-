@@ -176,7 +176,17 @@ def raster(v, f, color):
         abuf[lo_x:hi_x + 1, lo_y:hi_y + 1] |= win
 
     if not abuf.any():
-        return None
+        # 面全是退化面（叉积≈0）的模型：星空 / 粒子云 —— 它们没有表面，
+        # 按三角形画必然是空的。退回「按点渲染」，否则这类模型永远拿不到缩略图
+        # （实测 Stars_LOD0：18,192 个面全部零面积，36,384 个顶点全在 [-1,1]³）
+        ix = np.clip(px.astype(np.int32), 0, RS - 1)
+        iy = np.clip(py.astype(np.int32), 0, RS - 1)
+        zb = np.full((RS, RS), -np.inf, dtype=np.float32)
+        np.maximum.at(zb, (iy, ix), z)
+        abuf = zb > -np.inf
+        sbuf = np.where(abuf, 0.88, 0.0).astype(np.float32)
+        if not abuf.any():
+            return None
     cr, cg, cb = color
     img = np.zeros((RS, RS, 4), dtype=np.float32)
     img[..., 0] = cr * sbuf

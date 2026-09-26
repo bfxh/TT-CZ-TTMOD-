@@ -169,12 +169,17 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .th{position:relative;background:var(--panel-2);border-bottom:1px solid var(--line-2);
   display:grid;place-items:center;overflow:hidden;flex:0 0 auto}
 .th>img{width:100%;height:100%;object-fit:contain;display:block}
-.th .ph{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+.th .ph{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;
   color:var(--text-3)}
-.cd.noimg .ph{display:flex}
-.cd.noimg .th>img{display:none}
-.th .ph .ic{width:24px;height:24px}
-.th .ph .tx{font-size:10px}
+.cd.noimg .ph,.cd.loading .ph{display:flex}
+.cd.noimg .th>img,.cd.loading .th>img{display:none}
+/* 只有「确实没有图」才铺斜纹；加载中用平底，避免把正常卡片画成故障态 */
+.cd.noimg .th{background:repeating-linear-gradient(45deg,
+  var(--panel-2) 0 6px, var(--bg) 6px 12px)}
+.cd.loading .th{background:var(--panel-2)}
+.th .ph .ic{width:22px;height:22px;opacity:.75}
+.th .ph .tx{font-size:10.5px;letter-spacing:.4px;font-weight:500}
+.cd.noimg .ph .tx b{display:block;font-weight:400;color:var(--text-3);font-size:9.5px;letter-spacing:0;margin-top:1px}
 .th .dup{position:absolute;right:5px;top:5px;width:17px;height:17px;border-radius:4px;background:var(--warn);
   color:#fff;display:grid;place-items:center}
 .th .dup .ic{width:11px;height:11px}
@@ -769,12 +774,30 @@ function paintCard(el, it){
   const src = TH(it);
   if(c.img._src !== src){
     c.img._src = src;
-    el.classList.add('noimg');
-    setU(c.phi.firstChild, IREF(KICON(it.k)));
-    setT(c.pht, k[0]);
-    c.img.onload  = ()=> el.classList.remove('noimg');
-    c.img.onerror = ()=> el.classList.add('noimg');
-    c.img.src = src;
+    // 三种状态必须分开，否则「加载中」会被误报成「无缩略图」（实测 42 张里有 3 张只是还没解码完）
+    //   空模型   → 数据已知 0 面，不请求图，直接给结论
+    //   加载中   → 只出分类符号，不写任何结论性文字
+    //   渲染失败 → onerror 才写「无缩略图」
+    const blank = !it.fa;
+    el._blank = blank;
+    el.classList.toggle('blank-model', blank);
+    el.classList.toggle('noimg', blank);
+    el.classList.toggle('loading', !blank);
+    setU(c.phi.firstChild, IREF(blank ? 'no' : KICON(it.k)));
+    c.phi.style.color = blank ? '' : k[2];
+    if(blank){
+      c.pht.innerHTML = '空模型<b>0 面 · 0 顶点</b>';
+      c.img.removeAttribute('src');                 // 别去请求一个必然不存在的图
+    } else {
+      setT(c.pht, '');
+      c.img.onload  = ()=>{ el.classList.remove('noimg', 'loading'); };
+      c.img.onerror = ()=>{
+        el.classList.remove('loading'); el.classList.add('noimg');
+        setU(c.phi.firstChild, IREF('no')); c.phi.style.color = '';
+        c.pht.innerHTML = '无缩略图<b>渲染未产出</b>';
+      };
+      c.img.src = src;
+    }
   }
   c.dup.style.display = it.dup!=null ? '' : 'none';
   setT(c.nm, it.dn); c.nm.title = it.dn;

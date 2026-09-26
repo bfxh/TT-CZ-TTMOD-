@@ -94,6 +94,16 @@ setTimeout(function(){
   var cds=document.querySelectorAll('.cd');
   var ok=[].filter.call(document.querySelectorAll('.cd .th>img'),function(i){return i.naturalWidth>0;});
   out.push('卡片 '+cds.length+' 个，缩略图解码 '+ok.length+' 张');
+  // 无缩略图的卡片必须是「说得清的状态」，不能是一片空白
+  var ni=0, niBad=[];
+  document.querySelectorAll('.cd.noimg').forEach(function(c){
+    ni++;
+    var t=c.querySelector('.ph .tx');
+    if(!t || !t.textContent.trim()) niBad.push(c.querySelector('.nm')?c.querySelector('.nm').textContent:'?');
+  });
+  out.push('「无缩略图 / 空模型」占位卡片 '+ni+' 张 · 标签为空的 '+niBad.length+
+    (niBad.length?' → '+niBad.join(','):'')+' · 判定为空模型 '+document.querySelectorAll('.cd.blank-model').length+
+    ' 张 · 加载中 '+document.querySelectorAll('.cd.loading').length+' 张');
   if(cds[0]) out.push('卡片文本：'+cds[0].textContent.replace(/\s+/g,' ').trim());
   // 筛选条：加条件应出现，点 ✕ 应消失
   try{
