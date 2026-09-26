@@ -294,20 +294,20 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .ov-top .vsep{width:1px;height:20px;background:var(--line);margin:0 2px;flex:0 0 auto}
 
 .ov-body{flex:1;min-height:0;display:flex;background:var(--panel-2)}
-.pane{width:22%;flex:0 0 22%;min-width:228px;max-width:430px;overflow:auto;
-  position:relative;z-index:2;background:var(--panel)}
-/* 斜切用 clip-path 梯形：**形状是斜的，像素是 1:1**。
-   实测对照（同段文字，拉普拉斯方差占平放的比）：
-     平放 100% · rotateY(7°) 35% · rotateY(9°)+rotateX 30% · clip-path 99.7%
-   任何真 3D 旋转都要重采样，文字锐度直接砍掉三分之二 —— 所以斜切只做外形。 */
-.pane-l{background:linear-gradient(to right, var(--panel) 84%, var(--panel-2));
+.pane{width:22%;flex:0 0 22%;min-width:228px;max-width:430px;
+  position:relative;overflow:hidden;background:transparent}
+/* 斜切只画在**纯装饰层**上，内容层不裁不转。
+   为什么这样拆：clip-path 与 overflow:auto 落在同一个元素上时，部分 Chromium 版本
+   会把滚动内容一起裁掉 —— 表现出来的症状就是「整块信息板消失了」。
+   装饰层里没有任何文字，所以裁错了也不会丢内容。 */
+.pane-bg{position:absolute;inset:0;display:block;pointer-events:none}
+.pane-l .pane-bg{background:linear-gradient(to right, var(--panel) 84%, var(--panel-2));
   clip-path:polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%)}
-.pane-r{background:linear-gradient(to left, var(--panel) 84%, var(--panel-2));
+.pane-r .pane-bg{background:linear-gradient(to left, var(--panel) 84%, var(--panel-2));
   clip-path:polygon(26px 0, 100% 0, 100% 100%, 0 100%)}
-/* 内缘那道斜切口留白，正文不进去（否则底部会被切掉） */
-.pane-l .pane-in{padding-right:32px}
-.pane-r .pane-in{padding-left:32px}
-.pane-in{padding-bottom:18px}
+/* 内容层：独立绝对定位 + 自己滚动，不参与任何裁切 */
+.pane-in{position:absolute;inset:0;overflow:auto;padding:0 32px 18px}
+.pane-r .pane-in{padding:0 0 18px 32px}
 
 /* 中间舞台：贴图排进流、不压画布；画布独占剩下的整块 */
 .stage3{flex:1;min-width:0;display:flex;flex-direction:column;overflow:hidden}
@@ -475,7 +475,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
     </div>
 
     <div class="ov-body">
-      <aside class="pane pane-l"><div class="pane-in">
+      <aside class="pane pane-l"><span class="pane-bg"></span><div class="pane-in">
         <div class="sec"><h6>分类</h6><div class="chips js-kind"></div></div>
         <div class="sec"><h6>标识</h6><div class="js-ident"></div></div>
         <div class="sec"><h6>贴图<span class="c js-tex-n"></span></h6><div class="js-tex"></div></div>
@@ -500,7 +500,7 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
         </div>
       </div>
 
-      <aside class="pane pane-r"><div class="pane-in">
+      <aside class="pane pane-r"><span class="pane-bg"></span><div class="pane-in">
         <div class="sec"><h6>几何<span class="c js-geo-note"></span></h6><div class="js-geo"></div></div>
         <div class="sec"><h6>关联</h6><div class="js-rel"></div></div>
         <div class="sec"><h6>标记</h6><div class="chips js-tags"></div></div>
@@ -1370,6 +1370,54 @@ addEventListener('mouseout', e=>{ if(e.target.closest('[title]')) tip.classList.
 let tt=null;
 function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(tt);
   tt=setTimeout(()=>t.classList.remove('on'),1600); }
+
+/* ─────────── 界面自检页（URL 加 ?diag=1） ───────────
+   逐项列出每个 UI 元素的存在性、尺寸与 display，直接在页面上摊开，
+   遇到「某个 UI 不见了」时可以一眼看出是哪一项、以及它当时的状态。 */
+if(/[?&]diag=1/.test(location.search)) showDiag();
+function showDiag(){
+  const on = sel => { const e = document.querySelector(sel); return !!(e && e.classList.contains('on')); };
+  // [名称, 选择器, 此刻本该显示的判据] —— 判据为 null 表示常显；
+  // 有判据且此刻为假时，隐藏是设计如此，标 ○ 而不是 ✗，避免自检页自己制造噪音
+  const items = [
+    ['左侧轨道·全部','.rbtn[data-p=all]',null],['左侧轨道·游戏','.rbtn[data-p=game]',null],
+    ['左侧轨道·分类','.rbtn[data-p=kind]',null],['左侧轨道·分组','.rbtn[data-p=fac]',null],
+    ['左侧轨道·收藏','.rbtn[data-p=star]',null],['左侧轨道·副本','.rbtn[data-p=dup]',null],
+    ['左侧轨道·统计','.rbtn[data-p=stats]',null],
+    ['头部（整条）','.top',null],['品牌','.brand',null],['搜索框','.sbox',null],
+    ['视图切换','#view',null],['密度 小/中/大','#dens',null],['排序按钮','#btnSort',null],
+    ['副本按钮','#btnDup',null],['统计按钮','#btnStats',null],['主题按钮','#th',null],
+    ['内容区','#stage',null],['状态条','#sbar',null],
+    ['筛选条','#fbar', ()=>on('#fbar')],
+    ['列表表头','#lhead', ()=>on('#lhead')],
+    ['详情遮罩','#ov', ()=>on('#ov')],['详情面板','#ovp', ()=>on('#ov')],
+    ['左侧信息板','.pane-l', ()=>on('#ov')],['右侧信息板','.pane-r', ()=>on('#ov')],
+    ['贴图排','#texbar', ()=>on('#ov')],['HUD','#shhud', ()=>on('#ov')],
+    ['载入遮罩','#load', ()=>!!document.getElementById('load')]];
+  let bad = 0;
+  const rows = items.map(([n, sel, want])=>{
+    const e = document.querySelector(sel);
+    if(!e) return '✗ ' + n.padEnd(16) + ' 元素不存在于 DOM';
+    const r = e.getBoundingClientRect(), c = getComputedStyle(e);
+    const noPix = c.display==='none' || c.visibility==='hidden' || r.width<1 || r.height<1;
+    const shouldShow = want ? want() : true;
+    let mark;
+    if(noPix && !shouldShow) mark = '○ ' + n.padEnd(16) + ' 按需显示（此刻未触发）';
+    else if(noPix){ mark = '✗ ' + n.padEnd(16) + ' 本该显示却没了　display:' + c.display; bad++; }
+    else mark = '✓ ' + n.padEnd(16) + String(Math.round(r.width)+'×'+Math.round(r.height)).padStart(10) +
+      '  display:' + c.display;
+    return mark;
+  });
+  const box = document.createElement('pre');
+  box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#fff;color:#111;'+
+    'font:12px/1.75 ui-monospace,Consolas,monospace;padding:18px 20px;overflow:auto;white-space:pre-wrap;margin:0';
+  box.textContent = '界面自检　' + (bad ? '发现 ' + bad + ' 项异常' : '全部正常') + '\n' +
+    '视口 ' + innerWidth + '×' + innerHeight + '　DPR ' + devicePixelRatio +
+    '　浏览器缩放约 ' + ((outerWidth/innerWidth)*100).toFixed(0) + '%\n' +
+    '提示：换几个窗口宽度刷新本页，看哪一项会变成 ✗\n\n' +
+    rows.join('\n') + '\n\n把这张截图发我即可。';
+  document.body.appendChild(box);
+}
 </script>
 </body>
 </html>
