@@ -18,8 +18,10 @@ SHOT = os.path.join(ROOT, '_shots')
 TEMP = os.environ.get('TEMP') or r"C:\Windows\Temp"
 
 TARGETS = [
-    ('index.html', 'file-index.png'),
-    (os.path.join('dist', '资产库.html'), 'file-dist.png'),
+    ('index.html', 'file-index.png', True),
+    # 单文件是可选的（tools/build_standalone.py --form single 才生成）：
+    # 它不含缩略图，拷到别处只能看条目；存在就必须能打开，不存在不算失败。
+    (os.path.join('dist', '资产库.html'), 'file-dist.png', False),
 ]
 
 
@@ -37,17 +39,21 @@ def main() -> int:
     prof = os.path.join(TEMP, '_vh_file')
     warm(prof)
     bad = 0
-    for rel, shot in TARGETS:
+    for rel, shot, required in TARGETS:
         page = os.path.join(ROOT, rel)
         if not os.path.isfile(page):
-            print('  ✗ %-22s 文件不存在（先跑 tools/build_standalone.py）' % rel)
-            bad += 1
+            if required:
+                print('  ✗ %-22s 文件不存在' % rel)
+                bad += 1
+            else:
+                print('  ○ %-22s 未生成（可选：tools/build_standalone.py --form single）' % rel)
             continue
         url = 'file:///' + urllib.parse.quote(page.replace(os.sep, '/'))
         out = os.path.join(SHOT, shot).replace('/', os.sep)
         subprocess.run([EDGE, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
                         '--disable-extensions', '--hide-scrollbars', '--enable-unsafe-swiftshader',
                         '--user-data-dir=' + prof, '--window-size=1680,1000',
+                        '--run-all-compositor-stages-before-draw',
                         '--virtual-time-budget=25000', '--screenshot=' + out, url],
                        capture_output=True, text=True, timeout=300, errors='replace')
         size = os.path.getsize(out) if os.path.exists(out) else 0

@@ -13,25 +13,25 @@
 
 | 方式 | 要做什么 | 得到什么 |
 |---|---|---|
-| **在线看**（最少） | 点开 <https://bfxh.github.io/TT-CZ-TTMOD-/> | 完整界面 + 3D 预览，跑的是**合成数据**（页面顶部有提示条） |
-| **单文件** | 下载 Release 里的 `资产库-<tag>.html`，双击 | 完整界面，图标与数据全内联；3D 与「定位文件」需要本地服务 |
-| **本地目录** | `python tools/build_standalone.py` 后双击 `index.html` | **全量真实目录**（数据走 `_res/catalog.js`，缩略图走 `_thumbs/`） |
-| **本地全量** | 双击 `start_vault.bat` | 全部功能（3D、贴图覆盖、在资源管理器中定位） |
+| **双击**（最少） | `python tools/build_standalone.py` 后双击 `index.html` | **三款游戏的全部 31,611 个真实条目 + 真实缩略图**，缩略图/筛选/排序/收藏全可用 |
+| **起服务** | 双击 `start_vault.bat` | 再加 3D 预览（加载真实 OBJ）、贴图覆盖、在资源管理器中定位 |
+| **单文件**（可选） | `python tools/build_standalone.py --form single` | `dist/资产库.html`，拷到别处也能打开看条目；**不含缩略图** |
+| **在线** | 见下文「CI / CD」 | 目前不发 —— 真实数据不在仓库里，见该节说明 |
 
 不需要「先读文档找到入口，再进到某个子目录下找那个文件」——`index.html` 就在仓库根目录，双击即可。
 
 关于两种「一个文件」的边界（这里踩过坑，写清楚）：
 
-- `index.html` 是**全量库**的双击入口。它旁边有 `_res/` 与 `_thumbs/`，相对路径正常。
-- `dist/资产库.html` 是**单文件**形态，只保证在演示数据下真正自足 —— 那里缩略图是内联 SVG。
-  真实库的 `_thumbs/` 有 156 MB，内联不进去；而且单文件一旦放进 `dist/`，
-  里面的 `_thumbs/…` 会解析成 `dist/_thumbs/…`（不存在），三万多张卡片会全部写「无缩略图」。
-  所以真实数据下默认**不**生成单文件（`--form single` 可以硬要，但你会看到上面那个结果）。
+- `index.html` 是**全量库**的双击入口。它旁边有 `_res/` 与 `_thumbs/`，相对路径正常，
+  打开就是真实的三个游戏。
+- `dist/资产库.html` 是**单文件**形态，只内联图标与目录数据。`file://` 下相对路径按
+  **文件自身位置**解析，单文件一旦放进 `dist/`，里面的 `_thumbs/…` 就变成
+  `dist/_thumbs/…`（不存在），三万多张卡片会全部写「无缩略图」；而真实缩略图有 153 MB，
+  也内联不进去。所以它默认不生成，只在「拷到别处、只求能打开看条目」时才用。
 
 > 为什么双击也能读数据：浏览器在 `file://` 下会拦掉 `fetch()`，但**脚本标签不受同源限制**。
 > 所以 `tools/build_standalone.py` 把目录数据写成 `_res/catalog.js`（`window.CATALOG = {...}`），
 > `index.html` 优先读它、读不到再退回 `fetch('catalog_v3.json')`、都没有就给出可执行的下一步。
-> 演示构建写的是 `_res/catalog.demo.js`，**永不覆盖**本机真实目录。
 
 ## 为什么仓库里没有模型文件
 
@@ -44,7 +44,6 @@
 | `_thumbs/` | 156 MB | `build_thumbs.py` 离屏渲染的缩略图 |
 | `catalog_v3.json` | 13 MB | `build_catalog_v3.py` 扫描生成的目录 |
 | `_res/catalog.js` | 13 MB | 同一份目录的「双击可读」写法，`build_standalone.py` 生成 |
-| `_res/catalog.demo.js` | 0.2 MB | 演示数据的落点（演示构建不碰上面那份真实目录） |
 | `_res/catalog.json`、`_res/geom_cache.json` | 11 MB | 旧版目录与几何缓存 |
 | `dist/`、`_site/` | — | 打包产物（单文件 / 发布站点），由脚本生成 |
 | `viewer.html` | 7.8 MB | 旧版单文件查看器（已被 `index.html` 取代） |
@@ -124,8 +123,7 @@ build_catalog_v3.py     扫描 models/ → catalog_v3.json
 build_thumbs.py         软件光栅化每个 OBJ → _thumbs/<id//1000>/<id>.webp
 verify_ui.py            真实浏览器自检：结构 + 截图 + 版面像素 + --route 命令路由点击链路
 process_obj.py          旧版 OBJ→JS 转义缓存（保留，新界面不依赖）
-tools/build_standalone.py  出「双击即用」形态：_res/catalog.js 与（演示数据下的）单文件
-tools/build_site.py        组装可发布的演示站点（本地与 CI 同源，cd.yml 直接调它）
+tools/build_standalone.py  出「双击即用」形态：_res/catalog.js（与可选的单文件）
 tools/check_doubleclick.py 以 file:// 打开页面截图，验「双击就能看到东西」
 tools/thumb_orient_check.py 缩略图朝向门：不对称网格的着墨范围必须等于投影范围
 tools/                     门禁：路径纪律 / 明文 / 语法 / GitHub API 推送
@@ -169,45 +167,44 @@ URL 加 `?diag=1` 是界面自检页，逐项列出每个 UI 元素的存在性�
 | `tl` `tn` `tr` `tq` | 贴图列表 / 张数 / 角色集 / 关联质量 | `tq`：1=旧清单精确映射，2=文件名前缀推断；`tn` 必须等于 `len(tl)` |
 | `tg` | 标记 | `tex` `low` `hi` `lod` `dup` `col` `empty` `big` |
 | `dup` | 重复副本指向的 id | 同游戏 + 同文件名主干，按路径保留第一个 |
-| `th` | 缩略图内联覆盖（可省） | 演示数据用 `data:image/png;base64,…`；**`data:` URI 不能再过一遍 `encodeURI`** |
 
-> ⚠️ 四个已踩过的坑，改代码前先看这里：
+> ⚠️ 三个已踩过的坑，改代码前先看这里：
 > ① `s` 是 KB。当成字节会让 4 MB 的模型显示成 "4 KB"、总容量显示成 "0.0 GB"。
 > ② `x/y/z` 是三款游戏各自的原始单位，**不要**做跨游戏的体积比较或排序。
-> ③ `data:` URI 不能过 `encodeURI` —— 它会把已经 %-编码的内容再编一遍（`%23` → `%2523`），
->    缩略图会静默变成 0×0 而不报错。
-> ④ 卡片尺寸不要用 `CARD_W` 去「算」。`#win` 的网格列被 `1fr` 拉伸（dens=中 时实际 218 而不是
+> ③ 卡片尺寸不要用 `CARD_W` 去「算」。`#win` 的网格列被 `1fr` 拉伸（dens=中 时实际 218 而不是
 >    196），按常量算出来的缩略图高度会短 15px，被 `overflow:hidden` 裁掉底部；同一处偏差
 >    还会让虚拟滚动的行距差 3.84px，三万多条滚到后面累计漂移上万像素。现在高度由 `--thumbH`
 >    下发、行距**实测**标定，两个数不可能再对不上。
 
 ## CI / CD
 
-`.github/workflows/` 下两个工作流，分工明确：
+`.github/workflows/` 下两个工作流：
 
 | 工作流 | 管什么 | 内容 |
 |---|---|---|
-| `gates.yml`（**CI**） | 能不能合 | 自包含三门（路径纪律 / 明文 / 语法）+ ruff 逐规则棘轮 + mypy；另一组把 unified-rx-mcp 工具链钉在固定提交上复核 |
-| `cd.yml`（**CD**） | 能不能用 | `tools/build_site.py` 打演示站点 → 部署 GitHub Pages；`build_standalone.py --demo` 出单文件 → 打 `v*` tag 时发 Release |
+| `gates.yml`（**CI**） | 能不能合 | 自包含三门（路径纪律 / 明文 / 语法）+ ruff 逐规则棘轮 + mypy；另一组把 unified-rx-mcp 工具链钉在固定提交上复核；缩略图朝向门 |
+| `cd.yml`（**CD**） | 能不能用 | 把仓库内容变成可打开的东西，再挂到 Pages / Release |
 
-CD 里有一个必须先说清的前提：CI 中不存在真实资产（`models/` 与 catalog 都不入仓），
-所以它打的是**合成数据**产物。做法不是偷偷替换，而是让产物**自报家门**：
+### CD 为什么**不**发布任何东西（以及什么条件下会）
 
-- 目录数据带 `demo: true` → 页面顶部出一条「演示数据」提示条
-- 合成数据不是随手编的：包围盒 → 等轴测缩略图、合成 OBJ 网格、棋盘格贴图**三者同源**，
-  卡片上的顶点 / 面数 / 文件大小就是那个 OBJ 的真实统计值
-- 3D 查看器与贴图覆盖因此**不需要任何「演示模式」分支**，走的是和真实资产一样的相对路径
+真实数据**不在仓库里**：`models/` 2.5 GB（版权归各厂商）、`catalog_v3.json` 13 MB、
+`_thumbs/` 153 MB，全部被 `.gitignore` 挡住。所以 CI 里没有任何可发布的内容。
 
-CD 自己也有门（`产物自检` 步）：数据缺 `demo` 标记、缺图标雪碧、缺 `data-act`、
-OBJ 数为 0、条目少于 60，一律直接红 —— 免得把一个打不开的空壳发布出去。
+CD 于是只有两种诚实的做法：**明确跳过并说明**，或者**先合成一份假目录把流程跑通**。
+这里选前者 —— 后者能产出一个「看起来能用、实际全是编造内容」的站点，
+而这正是本项目明确不要的东西（曾经真这么做过一版：`--demo` 造的合成模型 + 合成缩略图 +
+GitHub Pages 上的假库，已被全部删除）。
 
-本地复现 CD 产物（与线上同一条路径）：
+`cd.yml` 现在会先探测仓库里有没有 `catalog_v3.json` 与 `_thumbs/`：
+没有就 `::notice` 说明缺什么、本地怎么用；有就自动开始打包发布。
+也就是说 —— **一旦你决定把数据入仓，CD 不需要再改就能工作**。
+
+本地复现线上产物（三条命令，与 CD 同源）：
 
 ```bash
-python tools/build_site.py --out _site
-python serve_v3.py --root _site --port 8801
-python verify_ui.py --page _site/index.html --base http://localhost:8801 \
-                    --diag _site/_diag.txt --route
+python tools/build_standalone.py --form js
+python serve_v3.py                       # 或直接双击 index.html
+python verify_ui.py --route              # 命令路由点击链路自检
 ```
 
 ## 质量门
@@ -224,7 +221,7 @@ python tools/syntax_check.py     # 语法门：Python 编译 + 内联 JS（node 
 ruff check .                     # 当前 0 命中
 mypy --config-file mypy.ini build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py \
      process_obj.py tools/path_check.py tools/secret_check.py tools/syntax_check.py \
-     tools/_push_via_api.py tools/build_standalone.py tools/build_site.py tools/check_doubleclick.py
+     tools/_push_via_api.py tools/build_standalone.py tools/check_doubleclick.py
 
 # 界面回归（需要浏览器 + 本地服务 + numpy/Pillow）
 python verify_ui.py              # 结构 + 截图 + 版面像素

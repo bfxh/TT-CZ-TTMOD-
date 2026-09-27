@@ -586,15 +586,10 @@ const fm  = n => n>=1e6 ? (n/1e6).toFixed(1)+'M' : n>=1e3 ? (n/1e3).toFixed(1)+'
 const dim = v => !v ? '0' : v>=100 ? String(Math.round(v)) : v.toFixed(2).replace(/\.?0+$/,'');
 const setT = (n,v) => { if(n.textContent !== v) n.textContent = v; };
 const setU = (n,v) => { if(n.getAttribute('href') !== v) n.setAttribute('href', v); };
-/* 缩略图：默认是离线渲染产物 _thumbs/<id//1000>/<id>.webp；
-   it.th 是打包器给的覆盖值（演示数据用程序化 SVG，仓库不承载任何游戏资产）。
-   注意 TH 给「图」用、THFILE 给「路径」用 —— 演示数据没有文件，THFILE 返回空串。 */
-const TH     = it => it.th || ('_thumbs/' + Math.floor(it.id/1000) + '/' + it.id + '.webp');
-const THFILE = it => it.th ? '' : '_thumbs/' + Math.floor(it.id/1000) + '/' + it.id + '.webp';
-/* 真路径要转义（# 与 ? 会被当成分片/查询），但 data: URI **绝不能再转义一次**：
-   encodeURI 会把已经 %-编码的 data URI 整个再编一遍（%23 → %2523），浏览器直接解不开。
-   这个坑的代价就是缩略图静默变成 0×0。 */
-const SRC = it => it.th ? it.th : enc(TH(it));
+/* 缩略图地址：build_thumbs.py 离屏渲染的产物。
+   路径要 encodeURI（真实文件名里可能有 `#` / `?`），但**不要**在 data: URI 上用它 ——
+   encodeURI 会把已经 %-编码的内容再编一遍（%23 → %2523），图会静默变成 0×0。 */
+const TH = it => '_thumbs/' + Math.floor(it.id/1000) + '/' + it.id + '.webp';
 
 /* 颜色只做「点」，不用来铺面板 */
 const GAMES = {tt:['泰拉科技','#3E9B4F','g-hex'], wr:['战争机器人','#C07A1E','g-shield'], is:['重装上阵','#8A5BD6','g-gear']};
@@ -911,7 +906,7 @@ function paintCard(el, it){
   const c = el._c, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96','g-hex'];
   // 缩略图高度不在这里写死：统一由 :root 的 --thumbH 下发（applyGeom），
   // 保证「算给虚拟滚动的高度」与「CSS 实际画出来的高度」是同一个数
-  const src = SRC(it);
+  const src = enc(TH(it));
   if(c.img._src !== src){
     c.img._src = src;
     // 三种状态必须分开，否则「加载中」会被误报成「无缩略图」（实测 42 张里有 3 张只是还没解码完）
@@ -1100,13 +1095,12 @@ function fillInfo(root, it, withThumbs){
     /* 这一区是**读**的，不是点的。只给「完整路径」一个复制入口 ——
        路径是唯一一个用户真的会想拿出去用的值；其余字段做成按钮只会变成一片下划线噪音。 */
     const dir = it.p ? it.p.replace(/\\/g,'/').split('/').slice(0,-1).join('/') : '';
-    const tp = THFILE(it);                 // 缩略图文件路径；被内联图覆盖时为空（缺就跳过这一行）
     ident.innerHTML = row('显示名', it.dn) + row('文件名', it.n+'.obj', 'mono') +
       (it.rn && it.rn !== it.dn ? row('资源原名', it.rn, 'mono') : '') +
       row('所属目录', it.c||'—', 'mono') +
       (dir ? row('相对目录', dir, 'mono') : '') +
       row('完整路径', it.p, 'mono', 'path:'+encodeURIComponent(it.p)) +
-      (tp ? row('缩略图', tp, 'mono', 'path:'+encodeURIComponent(tp)) : '') +
+      row('缩略图', TH(it), 'mono', 'path:'+encodeURIComponent(TH(it))) +
       (it.dup != null ? row('重复副本', '与 #'+it.dup+' 同名，仅保留首个入册', 'mono warn') : '');
   }
   const MAXF = S.maxfa || 1;

@@ -1,18 +1,16 @@
 name: cd
 
-# CI 管「能不能合」，CD 管「能不能用」。
-#   · gates.yml  五道门：路径纪律 / 明文 / 语法 / ruff 棘轮 / mypy，外加 unified-rx-mcp 那一组
-#   · cd.yml（本文件）把仓库打成一个「点开就能看」的产物，并挂到线上
+# CI（gates.yml）管「能不能合」；CD 管「能不能用」。
 #
-# 一个必须说清的前提：models/ 与 catalog_v3.json 都不入仓（版权 + 体积），
-# 所以 CI 里根本没有真实资产。CD 打的是 tools/build_standalone.py --demo 的**合成数据**，
-# 页面顶部会显式出一条「演示数据」提示条 —— 宁可让产物自报家门，也不让它冒充真目录。
-# 完整版只能在有资产的机器上本地跑：
-#     python build_catalog_v3.py && python tools/build_standalone.py
+# ⚠️ 一条必须先说清的硬约束：**真实数据不在仓库里**。
+#   · models/          2.5 GB  三款游戏导出的原始模型（版权归各厂商，不入仓）
+#   · catalog_v3.json   13 MB  扫描 models/ 得到的目录
+#   · _thumbs/         153 MB  build_thumbs.py 渲染的缩略图
+#   所以 CI 里根本没有可发布的内容。这个工作流**不会**去合成一份假目录来把流程跑通 ——
+#   那只会发布一个看起来能用、实际全是编造内容的站点。没有真实数据时明确跳过并说明。
 #
-# 产物两类，对应两种「开箱即用」：
-#   ① GitHub Pages —— 点链接直接看，不用下载任何东西
-#   ② Release 附件 —— 单个 HTML，下载下来双击就能打开（打 v* tag 时发）
+# 一旦真实数据入仓（例如只入 catalog_v3.json + _thumbs/，让线上能浏览真实条目与真实缩略图），
+# 下面的 job 会自动开始工作，不需要再改工作流。
 
 on:
   push:
@@ -29,12 +27,18 @@ concurrency:
 
 env:
   PYTHONUTF8: "1"
-  NUMPY_VERSION: "2.3.4"
 
 jobs:
-  package:
-    name: 打包（演示站 + 单文件）
+  publish:
+    name: 发布真实目录（数据不在仓时跳过）
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -42,135 +46,85 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 装演示缩略图渲染器依赖
-        # 演示缩略图复用生产渲染器 build_thumbs.raster（它要 numpy）。
-        # 不另写一套「演示专用」画法：那样卡片上的图、3D 里的模型、面数统计三者会对不上。
-        run: pip install --disable-pip-version-check "numpy==${NUMPY_VERSION}"
+      - name: 探测仓库里有没有真实目录数据
+        id: probe
+        run: |
+          set -euo pipefail
+          if [ ! -f catalog_v3.json ]; then
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=仓库不含真实数据，CD 跳过发布::models/ 2.5 GB、catalog_v3.json、_thumbs/ 都不入仓，CI 里没有可发布的内容。本地使用：python build_catalog_v3.py && python build_thumbs.py && python tools/build_standalone.py，然后双击 index.html（或 start_vault.bat 起服务）。"
+            exit 0
+          fi
+          items=$(python -c "import json;print(len(json.load(open('catalog_v3.json'))['items']))")
+          thumbs=$(find _thumbs -name '*.webp' 2>/dev/null | wc -l)
+          echo "目录 ${items} 条 · 缩略图 ${thumbs} 张"
+          echo "ready=true" >> "${GITHUB_OUTPUT}"
+          echo "items=${items}" >> "${GITHUB_OUTPUT}"
+          echo "thumbs=${thumbs}" >> "${GITHUB_OUTPUT}"
 
-      - name: 缩略图朝向门
-        # 渲染器的帧缓冲轴序写错时，每一张缩略图都是投影的转置（躺倒 90°），
-        # 而且不报错、不缺图 —— 只有不对称网格能抓出来，所以放在产物构建之前当门。
-        run: python -X utf8 tools/thumb_orient_check.py
-
-      - name: 组装 Pages 站点（合成数据 + 合成 OBJ）
-        # 组装逻辑在 tools/build_site.py 里，本地用同一句命令就能复现 CD 产物：
-        #   python tools/build_site.py --out _site
-        #   python serve_v3.py --root _site --port 8801
-        #   python verify_ui.py --page _site/index.html --base http://localhost:8801 \
-        #                       --diag _site/_diag.txt --route
-        run: python -X utf8 tools/build_site.py --out _site
-
-      - name: 生成单文件（给「下载后双击」用）
-        run: python -X utf8 tools/build_standalone.py --demo --out "dist/资产库.html"
+      - name: 组装站点（真实目录 + 真实缩略图）
+        if: steps.probe.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          rm -rf _site && mkdir -p _site/_res
+          python -X utf8 tools/build_standalone.py --form js
+          cp index.html _site/index.html
+          cp _res/icons.js _res/three.min.js _res/OBJLoader.js _res/OrbitControls.js _res/catalog.js _site/_res/
+          [ -d _thumbs ] && cp -r _thumbs _site/_thumbs || true
+          [ -f catalog_v3.json ] && cp catalog_v3.json _site/ || true
+          [ -f LICENSE ] && cp LICENSE _site/ || true
+          ls -la _site | head
 
       - name: 产物自检
-        # 这是 CD 的门：产物缺数据 / 缺图标 / 少了演示标记 / 少了 OBJ，都在这里拦下来，
-        # 免得把一个打不开的空壳发布出去。
+        if: steps.probe.outputs.ready == 'true'
         run: |
           set -euo pipefail
           test -s _site/index.html
-          test -s _site/_res/icons.js
           test -s _site/_res/catalog.js
-          test -s _site/_res/three.min.js
-          for f in _res/OBJLoader.js _res/OrbitControls.js; do test -s "_site/$f"; done
-
-          grep -q '"demo":true' _site/_res/catalog.js      || { echo "× 目录数据没带演示标记"; exit 1; }
-          grep -q 'id="isprite"' _site/index.html          || { echo "× 单页里没有图标雪碧容器"; exit 1; }
-          grep -q 'data-act' _site/index.html              || { echo "× 单页里没有命令路由（data-act）"; exit 1; }
-          grep -q 'window.CATALOG' _site/index.html        || { echo "× 单页里没有内联目录数据"; exit 1; }
-
-          n_obj=$(find _site/models -name '*.obj' | wc -l)
-          echo "演示 OBJ：$n_obj 个"
-          test "$n_obj" -gt 0 || { echo "× 没有合成 OBJ，3D 预览会打不开"; exit 1; }
-
-          n_item=$(grep -o '"id":[0-9]*' _site/_res/catalog.js | wc -l)
-          echo "演示条目：$n_item 条"
-          test "$n_item" -ge 60 || { echo "× 条目太少，跑不出虚拟滚动/筛选"; exit 1; }
-
-          echo "单文件体积：$(du -h "dist/资产库.html" | cut -f1)"
-          echo "站点体积：$(du -sh _site | cut -f1)"
-
-          {
-            echo "### CD 产物"
-            echo ""
-            echo "| 产物 | 规模 |"
-            echo "|---|---|"
-            echo "| \`dist/资产库.html\`（单文件，双击打开） | $(du -h "dist/资产库.html" | cut -f1) |"
-            echo "| \`_site/\`（Pages 站点） | $(du -sh _site | cut -f1) |"
-            echo "| 演示条目 | $n_item 条（合成数据，页面顶部有「演示数据」提示条） |"
-            echo "| 合成 OBJ | $n_obj 个 |"
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: vault-standalone
-          path: "dist/资产库.html"
-          if-no-files-found: error
+          test -s _site/_res/icons.js
+          grep -q 'window.CATALOG' _site/_res/catalog.js || { echo "× 目录数据没写进去"; exit 1; }
+          n=$(find _site/_thumbs -name '*.webp' 2>/dev/null | wc -l)
+          echo "站点缩略图 ${n} 张 · 整站 $(du -sh _site | cut -f1)"
+          test "$n" -gt 0 || { echo "× 没有缩略图，线上会是一屏「无缩略图」"; exit 1; }
 
       - uses: actions/upload-pages-artifact@v3
+        if: steps.probe.outputs.ready == 'true'
         with:
           path: _site
 
-  pages:
-    name: 发布到 GitHub Pages
-    needs: package
-    runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
       - name: 探测 Pages 是否已启用
         # 没开 Pages 时 GITHUB_TOKEN 没有建站权限（Resource not accessible by integration），
-        # configure-pages 会直接把 job 打红 —— 但那是**仓库设置**没做，不是代码坏了。
-        # 所以先探测：没开就给一条可执行的启用命令然后跳过，别让一个配置前提伪装成回归。
-        id: probe
+        # configure-pages 会把 job 直接打红 —— 但那是**仓库设置**没做，不是代码坏了。
+        if: steps.probe.outputs.ready == 'true'
+        id: pages
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
-            echo "ready=true" >> "${GITHUB_OUTPUT}"
-            echo "Pages 已启用"
+            echo "on=true" >> "${GITHUB_OUTPUT}"
           else
-            echo "ready=false" >> "${GITHUB_OUTPUT}"
-            echo "::notice title=GitHub Pages 未启用，已跳过部署::启用一次即可（之后自动）：gh api -X POST repos/${GITHUB_REPOSITORY}/pages -f build_type=workflow　或在 Settings → Pages 把 Source 设为 GitHub Actions。"
+            echo "on=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=GitHub Pages 未启用，已跳过部署::启用一次即可（之后自动）：gh api -X POST repos/${GITHUB_REPOSITORY}/pages -f build_type=workflow"
           fi
 
       - uses: actions/configure-pages@v5
-        if: steps.probe.outputs.ready == 'true'
+        if: steps.pages.outputs.on == 'true'
       - id: deploy
-        if: steps.probe.outputs.ready == 'true'
+        if: steps.pages.outputs.on == 'true'
         uses: actions/deploy-pages@v4
 
-      - name: 汇报站点地址
-        if: steps.probe.outputs.ready == 'true'
-        run: echo "演示站：${{ steps.deploy.outputs.page_url }}"
-
-  release:
-    name: 打 tag 时发 Release
-    needs: package
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: vault-standalone
-          path: dist
-
-      - name: 附到 Release
+      - name: 打 tag 时附到 Release
+        if: steps.probe.outputs.ready == 'true' && startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          python -X utf8 tools/build_standalone.py --form single --out "dist/资产库.html"
           cp "dist/资产库.html" "dist/资产库-$TAG.html"
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 \
-            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" \
-                 --title "资产库 $TAG" --generate-notes
+            || gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "资产库 $TAG" --generate-notes
           gh release upload "$TAG" "dist/资产库-$TAG.html" --repo "$GITHUB_REPOSITORY" --clobber
           echo "已发布：https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG"
+          echo "（单文件不含缩略图；完整效果请在仓库根目录双击 index.html）"

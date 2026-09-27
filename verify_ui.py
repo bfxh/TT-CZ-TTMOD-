@@ -419,23 +419,17 @@ setTimeout(function(){
       if(!jumped) ok(false, '关联里的 goto 没有换到别的模型');
 
       /* ⑥ 缩略图相关：「索引」是记录级信息、不该重复摆一张和中间 3D 一样的图；
-             「标识」区才给缩略图的**文件路径**，而且没有文件时按既有约定跳过该行。 */
+             「标识」区才给缩略图的**文件路径**。 */
       clearAll();
       vis('.cd,.lrow')[0].click();
       await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '详情面板4');
       var idxBox=document.querySelector('.js-idx');
       ok(idxBox && !idxBox.querySelector('img'),
          '索引区没有重复摆缩略图（那边只回答「这条在第几位」）');
-      var identRows=[].slice.call(document.querySelectorAll('.js-ident .r'));
-      var thumbRow=identRows.filter(function(r){
+      var thumbRow=[].slice.call(document.querySelectorAll('.js-ident .r')).filter(function(r){
         return (r.querySelector('.k')||{}).textContent === '缩略图'; });
-      if(S.cur && S.cur.th){
-        ok(thumbRow.length===0,
-           '缩略图是内联值（无对应文件），标识区按「缺失即跳过」不出这一行');
-      } else {
-        ok(thumbRow.length===1 && /_thumbs\//.test(thumbRow[0].textContent),
-           '标识区给出缩略图的真实文件路径「'+(thumbRow.length?thumbRow[0].textContent.trim():'缺')+'」');
-      }
+      ok(thumbRow.length===1 && /_thumbs\//.test(thumbRow[0].textContent),
+         '标识区给出缩略图的真实文件路径「'+(thumbRow.length?thumbRow[0].textContent.trim():'缺')+'」');
       ok(!/内联|演示缩略图|_res\/|data:image/.test(document.getElementById('ov').textContent||''),
          '界面文案里没有把打包/实现细节写给用户看');
 
