@@ -496,6 +496,38 @@ setTimeout(function(){
       });
       ok(nIcon>=20 && holes.length===0, '全页 '+nIcon+' 个图标占位全部画成实心符号'+
          (holes.length?'　← 空: '+holes.slice(0,8).join(','):''));
+      /* ⑨ 注入自测：目录里的文件名 / 路径 / 分组名**来自磁盘，可以是任意的**。
+             一个叫 `<img src=x onerror=…>.obj` 的文件既能把界面拼坏，也是一条注入路径。
+             所以这里现场喂一个恶意条目，断言它只作为**文本**出现：
+             不新增元素、不触发任何脚本，而且确实看得见（说明是转义而不是被丢掉）。 */
+      window.__inj = 0;
+      clearAll();
+      var it0 = S.view[0];
+      var evil = {
+        dn: '<img src=x onerror="window.__inj=1">',
+        n:  '<b>n</b>',
+        rn: '<svg onload="window.__inj=2">',
+        c:  '<script>window.__inj=3<\/script>',
+        f:  '<b>grp</b>',
+        p:  'models/" onmouseover="window.__inj=4'
+      };
+      var keep = {};
+      Object.keys(evil).forEach(function(k){ keep[k] = it0[k]; it0[k] = evil[k]; });
+      it0.tl = ['<img src=x onerror="window.__inj=5">.png']; it0.tn = 1; it0.tr = ['diffuse'];
+      it0.dn0 = it0.dn;
+      open(0);
+      await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '注入测试面板');
+      await sleep(400);
+      var probeSel = '.js-ident img, .js-ident b, .js-ident svg, .js-ident script,' +
+                     '#texbar img[src^="<"], .tw img[src^="<"]';
+      var injected = document.querySelectorAll(probeSel).length;
+      var identText = (document.querySelector('.js-ident')||{}).textContent || '';
+      ok(window.__inj === 0 && injected === 0,
+         '注入自测：恶意文件名没有被当成 HTML（触发脚本 '+window.__inj+' 次 · 新增元素 '+injected+' 个）');
+      ok(identText.indexOf('<img') >= 0 && identText.indexOf('onerror') >= 0,
+         '注入自测：恶意名字确实以**文本**显示出来了（不是被静默丢掉）');
+      Object.keys(keep).forEach(function(k){ it0[k] = keep[k]; });
+
     }catch(e){
       ok(false, '探针异常：'+(e && e.message || e));
     }

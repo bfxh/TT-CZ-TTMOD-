@@ -4,6 +4,15 @@
 本地 `git push` 报 CRYPT_E_NO_REVOCATION_CHECK，而 `gh` 走 Go 的 TLS 栈一切正常，
 所以改走「blob → tree → commit → 更新 ref」四步，TLS 验证保持开启。
 
+⚠️ **这个脚本会让本地与远端变成两条平行历史**（内容一致、SHA 不同）：
+   commit 是在服务端由本脚本新建的，本地那个 commit 对象根本没上传，于是
+   本地 `git log` 的每个 SHA 都与 GitHub 上的对不上。后果：
+     · 将来 `git push` 会被拒（非快进），要 `--force` 才能覆盖；
+     · 从 GitHub 上抄下来的 SHA 在本地 `git show` 查不到；
+     · `git status` 看着是干净的，但其实两条历史已经分叉。
+   同步办法：让 `git fetch` 走通（本机 TLS 拦了的话改用 SSH）。
+   根治办法：把本机公钥加到 GitHub 账号，然后改用 `git push` 走 SSH —— 完全绕开 TLS 拦截。
+
 用法：python tools/_push_via_api.py --repo bfxh/TT-CZ-TTMOD- --branch main --message-file <path>
 """
 from __future__ import annotations
@@ -101,7 +110,26 @@ def main() -> int:
        body={"sha": commit, "force": bool(a.force)})
     print("已推送 commit %s → %s/%s" % (commit[:7], a.repo, a.branch))
     print("https://github.com/%s/commit/%s" % (a.repo, commit))
+    # 把分叉这件事说出来，不要让它静默发生：本地 ref 仍指向本地那个 commit，
+    # 它的 SHA 与远端这个**永远不同**（服务端重建了提交对象）。
+    local_head = subprocess.run(["git", "rev-parse", "HEAD"], cwd=str(root), capture_output=True,
+                                text=True, encoding="utf-8", errors="replace",
+                                shell=False, check=False).stdout.strip()
+    print()
+    print("⚠️ 本地 HEAD %s ≠ 远端 %s（API 推送在服务端重建提交，两条历史内容一致但 SHA 不同）"
+          % (local_head[:7], commit[:7]))
+    print("   将来 git push 会被拒（非快进）；从 GitHub 抄的 SHA 本地查不到。")
+    print("   根治：把本机公钥加到 GitHub 账号后改用 SSH push（%s）" % _pubkey_hint())
     return 0
+
+
+def _pubkey_hint() -> str:
+    """给出本机公钥的路径，方便直接粘到 GitHub 的 SSH keys 设置里。"""
+    for name in ('id_ed25519.pub', 'id_rsa.pub'):
+        p = Path.home() / '.ssh' / name
+        if p.is_file():
+            return str(p)
+    return '~/.ssh/id_ed25519.pub'
 
 
 if __name__ == "__main__":

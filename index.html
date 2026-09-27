@@ -729,7 +729,12 @@ function markSort(){
 }
 
 /* 活动筛选条：把「现在被什么筛着」摆在明面上，每项都能一键摘掉 */
-function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+/* 目录数据 → HTML 的**唯一出口**上做转义，而不是指望每个调用点自觉。
+   文件名/路径来自磁盘，可以是任意的：一个叫 `<img src=x onerror=…>.obj` 的文件
+   既能把界面拼坏，也是一条注入路径（属性里带 `"` 的同理）。
+   实测：esc 原来只在筛选条用了 2 处，详情面板的显示名/路径/贴图名全是裸拼。 */
+function esc(s){ return String(s).replace(/[&<>"']/g,
+  c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function renderFbar(){
   const bar = $('fbar');
   const g = S.f.game ? (GAMES[S.f.game]||[S.f.game,'#8E8E96']) : null;
@@ -744,7 +749,7 @@ function renderFbar(){
   if(S.dup) parts.push(['副本', '已隐藏', '#B26A00', ()=>{ S.dup=false; }]);
   if(!parts.length){ bar.classList.remove('on'); bar.innerHTML=''; bar.onclick=null; return; }
   bar.innerHTML = '<span class="flab">筛选中</span>' + parts.map((p,i)=>
-    '<span class="fchip"><i class="d" style="background:'+p[2]+'"></i>'+esc(p[0])+'：'+esc(p[1])+
+    '<span class="fchip"><i class="d" style="background:'+cssColor(p[2])+'"></i>'+esc(p[0])+'：'+esc(p[1])+
     '<button class="x" data-i="'+i+'" title="移除该条件">✕</button></span>').join('')+
     '<button class="clr" data-clr="1">清除全部</button>';
   bar.classList.add('on');
@@ -1062,23 +1067,27 @@ function scrollInto(i){
 
 /* ─────────── 详情总览面板：字段分列两栏 ─────────── */
 /* 语义组件：凡是能被点出真实动作的信息，都渲染成按钮而不是纯文字 */
+/* 颜色只可能来自内置调色板，白名单一下：它要被拼进 style 属性 */
+function cssColor(c){ return /^#[0-9A-Fa-f]{3,8}$/.test(c) ? c : 'transparent'; }
 function row(k, v, cls, act){
   const val = act
-    ? '<button class="v act ' + (cls||'') + '" data-act="' + act + '" title="点击执行：' + act.split(':')[0] + '">' + v + '</button>'
-    : '<span class="v ' + (cls||'') + '">' + v + '</span>';
-  return '<div class="r"><span class="k">' + k + '</span>' + val + '</div>';
+    ? '<button class="v act ' + (cls||'') + '" data-act="' + esc(act) + '" title="点击执行：' +
+      esc(act.split(':')[0]) + '">' + esc(v) + '</button>'
+    : '<span class="v ' + (cls||'') + '">' + esc(v) + '</span>';
+  return '<div class="r"><span class="k">' + esc(k) + '</span>' + val + '</div>';
 }
 function chip(c, text, act){
-  const dot = '<i class="d" style="background:' + c + '"></i>';
-  if(!act) return '<span class="chip">' + dot + text + '</span>';
-  return '<button class="chip act" data-act="' + act + '" title="点击筛选：' + text + '">' + dot + text + '</button>';
+  const dot = '<i class="d" style="background:' + cssColor(c) + '"></i>';
+  if(!act) return '<span class="chip">' + dot + esc(text) + '</span>';
+  return '<button class="chip act" data-act="' + esc(act) + '" title="点击筛选：' +
+    esc(text) + '">' + dot + esc(text) + '</button>';
 }
 /* 命令按钮：图标 + 文案 + data-act。命令区就靠它把「对象上的能力」铺开成可点的面。
    local 为真表示这条命令需要后端（file:// 双击时做不到），加个虚线边提前说明。 */
 function cbtn(icon, text, act, local){
-  return '<button class="cbtn act' + (local ? ' local' : '') + '" data-act="' + act + '"' +
-    ' title="' + text + (local ? '（需要本地服务）' : '') + '">' +
-    '<span data-i="' + icon + '" class="ic"></span>' + text + '</button>';
+  return '<button class="cbtn act' + (local ? ' local' : '') + '" data-act="' + esc(act) + '"' +
+    ' title="' + esc(text) + (local ? '（需要本地服务）' : '') + '">' +
+    '<span data-i="' + esc(icon) + '" class="ic"></span>' + esc(text) + '</button>';
 }
 function fillInfo(root, it, withThumbs){
   /* 字段按目标列各取所需，缺失区块直接跳过；withThumbs=false 不出图片网格
@@ -1139,10 +1148,10 @@ function fillInfo(root, it, withThumbs){
   const tex = q('tex');
   if(tex) tex.innerHTML = (it.tl && it.tl.length)
     ? ((withThumbs === false) ? '' :
-        '<div class="texs">'+it.tl.slice(0,12).map(t=>'<div class="tw"><img loading="lazy" src="'+enc(t)+'"><span>'+t.split('/').pop()+'</span></div>').join('')+'</div>')+
+        '<div class="texs">'+it.tl.slice(0,12).map(t=>'<div class="tw"><img loading="lazy" src="'+enc(t)+'"><span>'+esc(t.split('/').pop())+'</span></div>').join('')+'</div>')+
       (roles ? '<div class="chips">'+roles+'</div>' : '')+
       ((withThumbs === false)
-        ? '<div class="tlist">'+it.tl.slice(0,40).map(t=>'<div class="ti"><span>'+t.split('/').pop()+'</span></div>').join('')+'</div>'
+        ? '<div class="tlist">'+it.tl.slice(0,40).map(t=>'<div class="ti"><span>'+esc(t.split('/').pop())+'</span></div>').join('')+'</div>'
         : '')+
       '<div class="note">来源：'+(it.tq===1?'旧清单精确映射':it.tq===2?'文件名前缀推断':'—')+'</div>'
     : '<div class="note" style="padding:8px 12px">无关联贴图</div>';
@@ -1299,7 +1308,7 @@ function buildTexBar(it){
 
   let h = '<button class="tb-chip act" data-act="tex:" title="还原为原始材质">原始材质</button>';
   h += list.map(t=>'<button class="tb-th act" data-act="tex:'+encodeURIComponent(t)+'"'+
-        ' title="点击用这张贴图覆盖：'+t.split('/').pop()+'">'+
+        ' title="点击用这张贴图覆盖：'+esc(t.split('/').pop())+'">'+
         '<img loading="lazy" src="'+enc(t)+'" alt=""></button>').join('');
   if(!list.length) h += '<span class="tb-none">该模型无关联贴图，可切线框/网格查看结构</span>';
   h += '<span class="tb-sep"></span><span class="tb-lab">平铺</span><div class="vseg">'+
@@ -1524,9 +1533,11 @@ function openFly(p){
   const P = PANELS[p]; $('fly').classList.add('on');
   setT($('flyT'), P.t);
   $('flyT').previousElementSibling.innerHTML = SVGICON(P.ic);
+  /* 分组名就是目录里的 it.f（用户自己的文件夹名），两个字段都要转义 */
   $('flyL').innerHTML = P.list().map(o=>
-    '<button class="opt'+(S.f[P.key]===o[0]?' on':'')+'" data-v="'+String(o[0]).replace(/"/g,'&quot;')+'">'+
-    '<i class="d" style="background:'+o[2]+'"></i><span class="t">'+o[1]+'</span><span class="n">'+nf(o[3])+'</span></button>').join('');
+    '<button class="opt'+(S.f[P.key]===o[0]?' on':'')+'" data-v="'+esc(o[0])+'">'+
+    '<i class="d" style="background:'+cssColor(o[2])+'"></i><span class="t">'+esc(o[1])+
+    '</span><span class="n">'+nf(o[3])+'</span></button>').join('');
   $('flyL').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
     const v=b.dataset.v; S.f[P.key] = S.f[P.key]===v ? null : v;
     markRail(); recount(); apply(); openFly(p);
@@ -1588,10 +1599,11 @@ function openStats(){
 }
 function sbar(t,n,mx,c){
   return '<div style="display:flex;align-items:center;gap:8px;font-size:11.5px;padding:2px 0">'+
-    '<i style="width:6px;height:6px;border-radius:50%;background:'+c+';flex:0 0 auto"></i>'+
-    '<span style="flex:0 0 62px;color:var(--text-2)">'+t+'</span>'+
+    '<i style="width:6px;height:6px;border-radius:50%;background:'+cssColor(c)+';flex:0 0 auto"></i>'+
+    '<span style="flex:0 0 62px;color:var(--text-2)">'+esc(t)+'</span>'+
     '<span style="flex:1;height:4px;border-radius:2px;background:var(--line-2);overflow:hidden">'+
-    '<span style="display:block;height:100%;width:'+(n/mx*100).toFixed(1)+'%;background:'+c+'"></span></span>'+
+    '<span style="display:block;height:100%;width:'+(n/mx*100).toFixed(1)+
+    '%;background:'+cssColor(c)+'"></span></span>'+
     '<span style="flex:0 0 46px;text-align:right;color:var(--text-3);font-family:var(--mono)">'+nf(n)+'</span></div>';
 }
 document.addEventListener('click', e=>{

@@ -126,6 +126,8 @@ process_obj.py          旧版 OBJ→JS 转义缓存（保留，新界面不依�
 tools/build_standalone.py  出「双击即用」形态：_res/catalog.js（与可选的单文件）
 tools/check_doubleclick.py 以 file:// 打开页面截图，验「双击就能看到东西」
 tools/thumb_orient_check.py 缩略图朝向门：不对称网格的着墨范围必须等于投影范围
+tools/serve_guard_check.py  静态服务路径守卫门：起真服务 + 原始请求路径打穿越
+tools/artifact_guard_check.py 产物安全门：内联目录数据必须对 HTML 安全
 tools/                     门禁：路径纪律 / 明文 / 语法 / GitHub API 推送
 docs/DESIGN.md          设计规范（现行）
 docs/archive/           过期设计稿（留痕，非规范）
@@ -199,6 +201,23 @@ GitHub Pages 上的假库，已被全部删除）。
 没有就 `::notice` 说明缺什么、本地怎么用；有就自动开始打包发布。
 也就是说 —— **一旦你决定把数据入仓，CD 不需要再改就能工作**。
 
+### 推送通道（本机的坑）
+
+本机 `git push` 走不通：schannel 报 `CRYPT_E_NO_REVOCATION_CHECK`，换 openssl 报
+`unable to get local issuer certificate`（本机有 TLS 拦截，两条路都堵），
+`http.schannelCheckRevoke=false` / `sslVerify=false` / `GIT_SSL_NO_VERIFY=1` 全试过，都无效。
+所以推送走 `tools/_push_via_api.py`（Git Data API，`gh` 的 Go TLS 栈正常）。
+
+**代价**：commit 是在服务端重建的，本地那个 commit 对象根本没上传，
+于是**本地与远端是两条内容一致、SHA 不同的平行历史**。后果是：
+`git log` 的 SHA 与 GitHub 上对不上、将来 `git push` 会被拒（非快进）、
+`git status` 看着干净但历史已经分叉。脚本在推送末尾会把这件事打出来。
+
+**根治**：把本机公钥（`~/.ssh/id_ed25519.pub`）加到 GitHub 账号的 SSH keys，
+然后 `git remote set-url origin git@github.com:bfxh/TT-CZ-TTMOD-.git` ——
+SSH 完全绕开 TLS 拦截。实测本机 SSH **能连到 GitHub**（握手正常），
+只是公钥还没注册，所以现在是 `Permission denied (publickey)`。
+
 本地复现线上产物（三条命令，与 CD 同源）：
 
 ```bash
@@ -231,6 +250,12 @@ python verify_ui.py --shots /tmp/s1   # 换个截图目录（反复跑时避免�
 
 # 缩略图朝向（需要 numpy）：不对称网格的着墨范围必须等于投影范围
 python tools/thumb_orient_check.py
+
+# 静态服务路径守卫（零依赖）：起真服务，用原始请求路径打穿越
+python tools/serve_guard_check.py
+
+# 产物安全（零依赖）：拿恶意文件名让构建器内联，产物必须对 HTML 安全
+python tools/artifact_guard_check.py
 
 # 双击可用性（无头浏览器以 file:// 打开并截图，不需要服务）
 python tools/check_doubleclick.py
@@ -265,6 +290,25 @@ python tools/check_doubleclick.py
 与**能力层**（状态类命令必须留下后果：筛选生效、面板收起、换到另一个模型、纹理真的换了一茬）。
 只测前者会漏掉「命令名写对但函数体是空的」，只测后者会漏掉「绕开路由直接改状态」——
 贴图排就曾自己绑了一套 `onclick` 绕过路由，是这条自检抓出来的。
+
+## 安全
+
+这个项目是本机工具（服务只绑 `127.0.0.1`），但「本机工具」不等于「不用管安全」：
+目录数据来自磁盘上的文件名，可以是任意的。2026-09-28 做过一次针对性审计，
+找到并修掉三处，每条都配了能**回退验证**的门（把修复改回去，门必须变红）。
+
+| 问题 | 表现 | 修法 | 门 |
+|---|---|---|---|
+| **前端 HTML 注入** | `esc()` 原来只在筛选条用了 2 处，详情面板的显示名 / 路径 / 分组名 / 贴图名全是裸拼进 `innerHTML`。一个叫 `<img src=x onerror=…>.obj` 的文件就能执行脚本（回退验证实测：**触发脚本 1 次、新增元素 4 个**） | 在 `row()` / `chip()` / `cbtn()` 三个「数据 → HTML」出口统一转义，颜色值加白名单，贴图名的 `title` 属性同样转义 | `verify_ui.py --route` 里的注入自测 |
+| **内联数据可提前闭合 `<script>`** | `json.dumps` 不转义 `<` `>` `&`，单文件版把目录数据内联进 `<script>` 时，一个叫 `</script>` 的文件名会让标签提前闭合、后面的内容变成标记（回退验证实测：`<script>` 数 **4 → 6**） | 序列化时把 `<` `>` `&` 转成 `\u003c` `\u003e` `\u0026`，并做「失败即失败」断言 | `tools/artifact_guard_check.py` |
+| **静态服务路径穿越** | `do_GET` 的 gzip 快速路径自己拼了一次路径、绕过 `SimpleHTTPRequestHandler` 的保护：`GET /../decoy.txt` 用**原始请求路径**发（`curl --path-as-is`，浏览器会自动规范化所以测不出来）能拿到站外文件 —— 回退验证实测**返回 200 并吐出站外内容**。另有 `replace('..','')` 过滤（`....//` 可绕）与 `startswith(SITEDIR)` 前缀匹配（同前缀兄弟目录可穿） | 统一走 `inside()`：剥掉 URL 前导 `/` → 挡盘符与 NUL → `realpath` → `commonpath` 判断；`/diag` 加正文上限 | `tools/serve_guard_check.py`（8 条判据） |
+
+顺带记两条判据本身踩过的坑：
+
+- **测穿越必须用原始请求路径**。浏览器和 `requests` 都会先规范化 `/../x`，从它们那边看永远是安全的。
+- **门自己也会挂**：`inside()` 第一版把「HTTP 路径总以 `/` 开头」当成绝对路径，整站 403，
+  门于是在启动探测上超时；而失败分支里去 `proc.stdout.read()` 收子进程输出又会**永久阻塞**。
+  现在的写法是：先剥前导斜杠，收输出前先 terminate。
 
 ## 许可
 

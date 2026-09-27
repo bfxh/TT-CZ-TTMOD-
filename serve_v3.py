@@ -12,6 +12,7 @@
 import argparse
 import gzip
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -22,6 +23,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # 实际对外服务的根。默认就是本目录；`--root _site` 时可以原样预览 CD 打出来的站点，
 # 相对路径（_res/、models/）与线上完全一致 —— 上线前先本地过一遍，别拿线上当调试环境。
 SITEDIR = ROOT
+# 自检回传的正文上限：_diag.txt 只有几 KB，给个明确的天花板
+MAX_DIAG_BYTES = 4 * 1024 * 1024
 
 # 启动时预压缩大文件，避免每次请求都压
 GZIP_TARGETS = ['catalog_v3.json', '_res/three.min.js', '_res/OBJLoader.js', '_res/OrbitControls.js']
@@ -52,6 +55,33 @@ MIME = {
 }
 
 
+def inside(rel):
+    """把请求里的相对路径解析成 SITEDIR 内的绝对路径；越界一律返回 None。
+
+    为什么不能只用 `replace('..', '')` 或 `startswith(SITEDIR)` —— 三种绕法都实测过：
+      · `....//`：过一遍 replace 会**变回** `../`；
+      · `/C:/Windows/win.ini`：lstrip('/') 之后是 `C:/…`，`os.path.join` 见到盘符会
+        **丢掉** SITEDIR 直接拼上去；
+      · `...3D查看_bak`：`startswith` 是前缀匹配，同前缀的兄弟目录也会被放行。
+    正确做法：先剥掉 URL 形态的前导 `/`、挡掉盘符与 NUL，再用 realpath 解析
+    （顺带解掉软链接逃逸），最后用 commonpath 判断是否真的落在 SITEDIR 里面。
+    注意顺序：HTTP 请求路径**总是**以 `/` 开头，所以前导斜杠必须先剥掉，
+    否则一条正常请求也会被判成绝对路径（第一版就是这么写的，整站 403）。
+    """
+    rel = urllib.parse.unquote(rel or '').replace('\\', '/').lstrip('/')
+    if not rel or '\x00' in rel or re.match(r'^[A-Za-z]:', rel):
+        return None
+    full = os.path.realpath(os.path.join(SITEDIR, rel))
+    if full == SITEDIR:
+        return full
+    try:
+        if os.path.commonpath([SITEDIR, full]) != SITEDIR:
+            return None
+    except ValueError:      # 不同盘符，commonpath 直接抛
+        return None
+    return full
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=SITEDIR, **kwargs)
@@ -78,8 +108,11 @@ class Handler(SimpleHTTPRequestHandler):
             return self.handle_open()
         if self.path.split('?')[0] in ('', '/', '/index.html'):
             self.path = '/index.html'
-        rel = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
-        gz = os.path.join(SITEDIR, rel + '.gz')
+        rel = self.path.split('?')[0]
+        full = inside(rel)
+        if full is None:
+            return self.send_error(403)
+        gz = full + '.gz'
         if os.path.isfile(gz) and 'gzip' in self.headers.get('Accept-Encoding', ''):
             self.send_response(200)
             self.send_header('Content-Type', self.guess_type(rel))
@@ -99,6 +132,8 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split('?')[0] != '/diag':
             return self.send_error(404)
         n = int(self.headers.get('Content-Length') or 0)
+        if n > MAX_DIAG_BYTES:
+            return self.send_error(413)
         body = self.rfile.read(n) if n else b''
         with open(os.path.join(SITEDIR, '_diag.txt'), 'wb') as f:
             f.write(body)
@@ -109,9 +144,8 @@ class Handler(SimpleHTTPRequestHandler):
 
     def handle_open(self):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
-        rel = (q.get('path', [''])[0] or '').replace('..', '').lstrip('/\\')
-        full = os.path.normpath(os.path.join(SITEDIR, rel))
-        if not full.startswith(SITEDIR):
+        full = inside(q.get('path', [''])[0])
+        if full is None:
             return self.json(403, {'ok': False, 'error': 'forbidden'})
         if not os.path.exists(full):
             return self.json(404, {'ok': False, 'error': 'not found'})
@@ -151,7 +185,7 @@ if __name__ == '__main__':
     ap.add_argument('--root', default=ROOT, help='站点根目录（默认本目录）')
     ap.add_argument('--port', type=int, default=0, help='端口，0 = 从 8800 起自动找空位')
     a = ap.parse_args()
-    SITEDIR = os.path.abspath(a.root)
+    SITEDIR = os.path.realpath(os.path.abspath(a.root))
     if not os.path.isdir(SITEDIR):
         sys.exit('目录不存在：%s' % SITEDIR)
 

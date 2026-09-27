@@ -22,6 +22,7 @@ env:
     build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py process_obj.py
     tools/path_check.py tools/secret_check.py tools/syntax_check.py tools/_push_via_api.py
     tools/build_standalone.py tools/check_doubleclick.py tools/thumb_orient_check.py
+    tools/serve_guard_check.py tools/artifact_guard_check.py
 
 jobs:
   repo-gates:
@@ -42,6 +43,12 @@ jobs:
 
       - name: 语法门（Python / 内联 JS / JSON）
         run: python tools/syntax_check.py
+
+      - name: 静态服务的路径守卫门（真起服务 + 原始请求路径打穿越）
+        run: python tools/serve_guard_check.py
+
+      - name: 产物安全门（内联目录数据必须对 HTML 安全）
+        run: python tools/artifact_guard_check.py
 
       - name: 安装静态门工具（钉版本）
         run: pip install --disable-pip-version-check "ruff==${RUFF_VERSION}" "mypy==${MYPY_VERSION}"

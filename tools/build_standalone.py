@@ -41,10 +41,26 @@ def load_items() -> list[dict]:
     return doc['items'] if isinstance(doc, dict) else doc
 
 
+def json_for_html(obj) -> str:
+    """把对象序列化成可以安全内联进 `<script>` 的 JSON。
+
+    `json.dumps` 不转义 `<` `>` `&`，于是文件名里只要有一个 `</script>`，
+    单文件版的 `<script>` 就会被**提前闭合**，剩下的内容变成标记 —— 既能把页面拼坏，
+    也是一条注入路径（目录数据来自磁盘，文件名可以是任意的）。
+    `\\u003c` 这类转义在 JSON 与 JS 里都合法，解析结果完全一致。
+    """
+    out = json.dumps(obj, ensure_ascii=False, separators=(',', ':'))
+    out = out.replace('<', '\\u003c').replace('>', '\\u003e').replace('&', '\\u0026')
+    # 失败即失败：转义漏了就让构建直接报错，不要发布一个能被文件名打穿的单文件
+    if any(ch in out for ch in '<>&'):
+        raise SystemExit('内联数据里还有裸的 < > &，HTML 安全转义没生效')
+    return out
+
+
 def write_catalog_js(items: list[dict]) -> Path:
     """写成脚本而不是 JSON：file:// 下 fetch 被同源策略拦，script 标签不受限。"""
     CATALOG_JS.parent.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({'items': items}, ensure_ascii=False, separators=(',', ':'))
+    payload = json_for_html({'items': items})
     header = ('/* 由 tools/build_standalone.py 生成，不要手改；已加入 .gitignore。\n'
               '   作用：让 index.html 在 file://（双击打开）下也能拿到目录数据。 */\n')
     CATALOG_JS.write_text(header + 'window.CATALOG = ' + payload + ';\n', encoding='utf-8')
@@ -68,7 +84,7 @@ def build_single_file(items: list[dict], out: Path) -> Path:
     else:
         sys.exit('index.html 里找不到 icons.js 的外链标签，单文件打包中止')
 
-    payload = json.dumps({'items': items}, ensure_ascii=False, separators=(',', ':'))
+    payload = json_for_html({'items': items})
     marker = 'PAINT_ICONS();'
     if marker not in html:
         sys.exit('index.html 里找不到脚本入口标记，单文件打包中止')
