@@ -175,8 +175,11 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   cursor:pointer;display:flex;flex-direction:column;transition:border-color .1s}
 .cd:hover{border-color:var(--text-3)}
 .cd.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+/* 缩略图区：高度由 --thumbH 下发（JS 按**真实列宽**算，见 applyGeom）。
+   这里必须是 block 而不是 grid —— grid 容器里子项的 height:100% 会因自发行高
+   不确定而失效，退回固有比例撑高，然后被 overflow:hidden 裁掉底部。 */
 .th{position:relative;background:var(--panel-2);border-bottom:1px solid var(--line-2);
-  display:grid;place-items:center;overflow:hidden;flex:0 0 auto}
+  display:block;height:var(--thumbH,141px);overflow:hidden;flex:0 0 auto}
 .th>img{width:100%;height:100%;object-fit:contain;display:block}
 .th .ph{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:5px;
   color:var(--text-3)}
@@ -192,7 +195,9 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .th .dup{position:absolute;right:5px;top:5px;width:17px;height:17px;border-radius:4px;background:var(--warn);
   color:#fff;display:grid;place-items:center}
 .th .dup .ic{width:11px;height:11px}
-.bd{padding:7px 8px 8px;display:flex;flex-direction:column;gap:4px}
+/* 卡片体定高：让 #win 的自发行高是确定值，虚拟滚动的行距才可能量准。
+   名字是 nowrap、指标是固定 2×2、页脚一行 —— 内容本来就是定高的，这里只是把它写明。 */
+.bd{padding:7px 8px 8px;display:flex;flex-direction:column;gap:4px;height:116px;overflow:hidden}
 .nm{font-size:12.5px;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .kl{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-2);min-width:0}
 .kl .d{width:6px;height:6px;border-radius:50%;flex:0 0 auto}
@@ -278,14 +283,6 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
   white-space:normal;word-break:break-all}
 .r .v.act.mono:hover{color:var(--accent)}
 .r .v.act.warn:hover{color:var(--warn)}
-/* 检查器里的缩略图：把图本身摆出来，路径退成脚注。
-   缺图时留下斜纹底（与卡片的 `.miss` 同一套），不要露破图图标 */
-.r .v.thumb{display:flex;flex-direction:column;align-items:flex-end;gap:3px}
-.tbox{display:block;width:64px;height:46px;border:1px solid var(--line);border-radius:4px;
-  overflow:hidden;background:var(--panel-2) repeating-linear-gradient(45deg,transparent 0 5px,var(--line-2) 5px 10px)}
-.tbox img{width:100%;height:100%;object-fit:cover;display:block}
-.tbox img.miss{display:none}
-.r .v.thumb .p{font:400 10px/1.45 var(--mono);color:var(--text-3);word-break:break-all;text-align:right;max-width:200px}
 /* 命令按钮：信息板「命令」区专用。比 chip 大一档、带图标，因为它代表一次真实执行 */
 .cbtn{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:5px;
   background:var(--panel);border:1px solid var(--line);font-size:11.5px;color:var(--text-2)}
@@ -337,17 +334,21 @@ input{font:inherit;color:inherit;background:none;border:0;outline:0}
 .ov-top .vsep{width:1px;height:20px;background:var(--line);margin:0 2px;flex:0 0 auto}
 
 .ov-body{flex:1;min-height:0;display:flex;background:var(--panel-2)}
-.pane{width:22%;flex:0 0 22%;min-width:228px;max-width:430px;
-  position:relative;overflow:hidden;background:transparent}
-/* 斜切只画在**纯装饰层**上，内容层不裁不转。
-   为什么这样拆：clip-path 与 overflow:auto 落在同一个元素上时，部分 Chromium 版本
-   会把滚动内容一起裁掉 —— 表现出来的症状就是「整块信息板消失了」。
-   装饰层里没有任何文字，所以裁错了也不会丢内容。 */
+/* 斜切幅度。原来 26px / 792px ≈ 1.9°，肉眼就是一条直边，「两侧是斜的」完全没传达出来；
+   56px ≈ 4° 才读得出是透视。左右板镜像对称（内边都向下收拢），
+   而不是像原来那样两块同向倾斜 —— 同向倾斜看起来是斜体字，不是透视。 */
+.pane{--pane-slant:56px;
+  width:22%;flex:0 0 22%;min-width:228px;max-width:430px;
+  position:relative;overflow:hidden}
+.pane-l{clip-path:polygon(0 0, 100% 0, calc(100% - var(--pane-slant)) 100%, 0 100%)}
+.pane-r{clip-path:polygon(0 0, 100% 0, 100% 100%, var(--pane-slant) 100%)}
+/* 底色层：只负责渐变，不再承载裁切。
+   裁切必须落在 .pane 上 —— 只裁底色层的话，斜掉的那块三角里文字会照画，
+   浮到中间的 3D 舞台上。.pane 是 overflow:hidden 而非 auto（滚动在 .pane-in 上），
+   所以「clip-path + overflow 同元素会裁掉滚动内容」那个坑不适用。 */
 .pane-bg{position:absolute;inset:0;display:block;pointer-events:none}
-.pane-l .pane-bg{background:linear-gradient(to right, var(--panel) 84%, var(--panel-2));
-  clip-path:polygon(0 0, 100% 0, calc(100% - 26px) 100%, 0 100%)}
-.pane-r .pane-bg{background:linear-gradient(to left, var(--panel) 84%, var(--panel-2));
-  clip-path:polygon(26px 0, 100% 0, 100% 100%, 0 100%)}
+.pane-l .pane-bg{background:linear-gradient(to right, var(--panel) 84%, var(--panel-2))}
+.pane-r .pane-bg{background:linear-gradient(to left, var(--panel) 84%, var(--panel-2))}
 /* 内容层：独立绝对定位 + 自己滚动，不参与任何裁切 */
 .pane-in{position:absolute;inset:0;overflow:auto;padding:0 32px 18px}
 .pane-r .pane-in{padding:0 0 18px 32px}
@@ -764,15 +765,47 @@ function renderFbar(){
   };
 }
 
-/* ─────────── 虚拟滚动（节点池复用） ─────────── */
+/* ─────────── 虚拟滚动（节点池复用） ───────────
+   卡片尺寸的唯一真源是 CSS。这里不再用 CARD_W/常量去「复述」卡片高度，
+   而是**量**出来（见 PITCH 标定）——理由是一个实测过的坑：
+   `#win` 的网格列被 `1fr` 拉伸（dens=中 时列宽 218 而不是 CARD_W 的 196），
+   按常量算的缩略图高度只有 141，而 img 按固有比例实际要 155.7，
+   被 `.th{overflow:hidden}` 裁掉底部 15px —— 等轴测盒子的下顶点整片切掉。
+   同一处偏差还让 unit 与真实行高差 3.84px，三万多条滚到后面会累计漂移上万像素。 */
 const Pool = {nodes:[], start:-1, mode:null};
+let PITCH = 0, PITCH_W = -1;      // 实测行距（含间隔）与它对应的列宽
 function cardW(){ return CARD_W[S.dens]; }
-function thumbH(){ return Math.round(cardW()*0.72); }
-function unitH(){ return S.mode==='list' ? ROWH+2 : thumbH()+104+GAP; }
-function perRow(){
-  if(S.mode==='list') return 1;
+function gridCols(){
   const w = $('win').clientWidth || 900;
-  return Math.max(1, Math.floor((w+GAP)/(cardW()+GAP)));
+  return Math.max(1, Math.floor((w + GAP) / (cardW() + GAP)));
+}
+/* 网格列被 1fr 拉伸后的**真实**宽度（可能大于 cardW()） */
+function colW(){
+  if(S.mode === 'list') return $('win').clientWidth || 900;
+  const w = $('win').clientWidth || 900, n = gridCols();
+  return (w - (n - 1) * GAP) / n;
+}
+function thumbH(){ return Math.round(colW() * 0.72); }
+/* 行距优先用实测值；还没标定过时退回推算（下次 layout 就会补上真值） */
+function unitH(){
+  if(S.mode === 'list') return ROWH + 2;
+  return PITCH || (thumbH() + 116 + GAP);
+}
+function perRow(){ return S.mode === 'list' ? 1 : gridCols(); }
+/* 把算出来的缩略图高度下发成 CSS 变量 —— 卡片自己不存这个数，CSS 也不写死 */
+function applyGeom(){
+  document.documentElement.style.setProperty('--thumbH', thumbH() + 'px');
+}
+/* 用真实渲染出来的两张卡片量行距：CSS 改了卡片高度，这里自动跟上 */
+function calibrate(){
+  if(S.mode === 'list') return false;
+  const pr = perRow();
+  const ns = Pool.nodes.filter(n => n.style.display !== 'none' && n._vi >= 0);
+  if(ns.length <= pr) return false;
+  const d = Math.round(ns[pr].getBoundingClientRect().top - ns[0].getBoundingClientRect().top);
+  if(d < 20 || d === PITCH) return false;
+  PITCH = d;
+  return true;
 }
 const CARD_TPL =
  '<div class="th"><img alt="">'+
@@ -819,7 +852,7 @@ function buildLHead(){
     apply();
   }));
 }
-function layout(force){
+function layout(force, retry){
   const win = $('win'), stage = $('stage');
   if(Pool.mode !== S.mode){
     Pool.mode = S.mode;
@@ -834,6 +867,9 @@ function layout(force){
     const tpl = 'repeat(auto-fill,minmax('+cardW()+'px,1fr))';
     if(win.style.gridTemplateColumns !== tpl) win.style.gridTemplateColumns = tpl;
   }
+  // 列宽一变（窗口缩放、密度切换、模式切换）实测行距就作废，必须重新标定
+  if(PITCH_W !== colW()){ PITCH = 0; PITCH_W = colW(); }
+  applyGeom();
   const pr = perRow(), unit = unitH();
   const rows = Math.ceil(S.view.length / pr);
   $('spacer').style.height = (rows*unit) + 'px';
@@ -850,7 +886,11 @@ function layout(force){
   const start = Math.max(0, Math.min(Math.floor(stage.scrollTop/unit)*pr,
     Math.max(0, S.view.length - Pool.nodes.length)));
   win.style.transform = 'translateY(' + Math.floor(start/pr)*unit + 'px)';
-  if(!force && start === Pool.start) return;
+  if(!force && start === Pool.start){
+    // 滚动位置没变时也要补一次标定：首帧的 unit 是推算值，得用真值再算一遍
+    if(calibrate()) layout(true, true);
+    return;
+  }
   Pool.start = start;
   for(let i=0;i<Pool.nodes.length;i++){
     const el = Pool.nodes[i], it = S.view[start+i];
@@ -860,6 +900,8 @@ function layout(force){
     el._id = it.id; el._vi = start+i;
     if(S.mode==='list') paintRow(el,it); else paintCard(el,it);
   }
+  // 卡片已经画出来了，这时候量到的行距才是真的；换掉推算值重算一遍
+  if(!retry && calibrate()) layout(true, true);
 }
 let raf = null;
 $('stage').addEventListener('scroll', ()=>{ if(raf) return;
@@ -867,7 +909,8 @@ $('stage').addEventListener('scroll', ()=>{ if(raf) return;
 
 function paintCard(el, it){
   const c = el._c, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96','g-hex'];
-  if(el._h !== thumbH()){ el._h = thumbH(); c.th.style.height = thumbH()+'px'; }
+  // 缩略图高度不在这里写死：统一由 :root 的 --thumbH 下发（applyGeom），
+  // 保证「算给虚拟滚动的高度」与「CSS 实际画出来的高度」是同一个数
   const src = SRC(it);
   if(c.img._src !== src){
     c.img._src = src;
@@ -925,7 +968,7 @@ function status(){
     '<i>|</i>重复副本 <b>'+nf(S.tot-S.uniq)+'</b>'+(S.dup?'（已隐藏）':'')+
     '<i>|</i>有贴图 <b>'+(S.tex/S.tot*100).toFixed(0)+'%</b>'+
     '<i>|</i>收藏 <b>'+S.fav.size+'</b>'+
-    '<span class="sp"></span>模型体积 <b>'+(S.bytes/1048576).toFixed(1)+' GB</b>';
+    '<span class="sp"></span>模型体积 <b>'+kb(S.bytes)+'</b>';
 }
 
 /* ─────────── 命令路由：信息对象 → 可点组件 → 命令 → 真实能力 ───────────
@@ -1057,11 +1100,13 @@ function fillInfo(root, it, withThumbs){
     /* 这一区是**读**的，不是点的。只给「完整路径」一个复制入口 ——
        路径是唯一一个用户真的会想拿出去用的值；其余字段做成按钮只会变成一片下划线噪音。 */
     const dir = it.p ? it.p.replace(/\\/g,'/').split('/').slice(0,-1).join('/') : '';
+    const tp = THFILE(it);                 // 缩略图文件路径；被内联图覆盖时为空（缺就跳过这一行）
     ident.innerHTML = row('显示名', it.dn) + row('文件名', it.n+'.obj', 'mono') +
       (it.rn && it.rn !== it.dn ? row('资源原名', it.rn, 'mono') : '') +
       row('所属目录', it.c||'—', 'mono') +
       (dir ? row('相对目录', dir, 'mono') : '') +
       row('完整路径', it.p, 'mono', 'path:'+encodeURIComponent(it.p)) +
+      (tp ? row('缩略图', tp, 'mono', 'path:'+encodeURIComponent(tp)) : '') +
       (it.dup != null ? row('重复副本', '与 #'+it.dup+' 同名，仅保留首个入册', 'mono warn') : '');
   }
   const MAXF = S.maxfa || 1;
@@ -1111,19 +1156,12 @@ function fillInfo(root, it, withThumbs){
   if(tags) tags.innerHTML = (it.tg||[]).map(t=>
       chip(t==='dup'||t==='empty'||t==='big'?'#B26A00':'#8E8E96', TAG_CN[t]||t, 'filter:tag='+t)).join('')
     || '<span style="font-size:11.5px;color:var(--text-3)">（无）</span>';
-  /* 缩略图这一行要回答的是「系统手里那张图长什么样」，所以直接把图摆出来；
-     路径是脚注，不是主角（要看路径的去「完整路径」拿）。 */
+  /* 索引是**记录级**信息，只回答「这条在第几位」。这里原先放了一张缩略图 ——
+     和中间那块大 3D 是同一个东西，纯重复；缩略图的文件路径已经归到「标识」区。 */
   const idx = q('idx');
-  if(idx){
-    const tp = THFILE(it);
-    idx.innerHTML =
-      row('入库序号', '#'+it.id) +
-      '<div class="r"><span class="k">缩略图</span><span class="v thumb">' +
-        '<span class="tbox"><img class="tprev" loading="lazy" src="'+SRC(it)+'" alt=""></span>' +
-        (tp ? '<span class="p">'+tp+'</span>' : '') +
-      '</span></div>' +
-      row('在结果中', (S.idx>=0 ? '第 '+(S.idx+1)+' / '+nf(S.view.length) : '—'));
-  }
+  if(idx) idx.innerHTML =
+    row('入库序号', '#'+it.id) +
+    row('在结果中', (S.idx>=0 ? '第 '+(S.idx+1)+' / '+nf(S.view.length) : '—'));
 
   /* 命令区：这个资产对象上**真正有独立价值**的几个动作。
      刻意只有四条 —— 「信息对象 → 可点组件 → 命令 → 能力」这条链路要成立，
@@ -1531,8 +1569,7 @@ document.addEventListener('error', e=>{
   const img = e.target;
   if(!(img instanceof HTMLImageElement)) return;
   const host = img.closest('.tb-th, .tw');
-  if(host){ host.classList.add('miss'); return; }
-  if(img.classList.contains('tprev')) img.classList.add('miss');
+  if(host) host.classList.add('miss');
 }, true);
 
 const pop = $('pop');
@@ -1549,7 +1586,7 @@ function openStats(){
     '<div style="font-size:11px;color:var(--text-3);margin-top:8px;line-height:1.7">'+
     '唯一资产 '+nf(S.uniq)+'<br>重复副本 '+nf(S.tot-S.uniq)+'（占 '+(100-S.uniq/S.tot*100).toFixed(0)+'%）<br>'+
     '已关联贴图 '+nf(S.tex)+'（'+(S.tex/S.tot*100).toFixed(0)+'%）<br>'+
-    '模型体积合计 '+(S.bytes/1048576).toFixed(2)+' GB</div></div>';
+    '模型体积合计 '+kb(S.bytes)+'</div></div>';
   const r = $('btnStats').getBoundingClientRect();
   pop.style.top = (r.bottom+6)+'px';
   pop.style.left = Math.max(8, Math.min(r.left-200, innerWidth-300))+'px';

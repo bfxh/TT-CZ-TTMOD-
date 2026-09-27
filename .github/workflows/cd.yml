@@ -29,6 +29,7 @@ concurrency:
 
 env:
   PYTHONUTF8: "1"
+  NUMPY_VERSION: "2.3.4"
 
 jobs:
   package:
@@ -40,6 +41,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: 装演示缩略图渲染器依赖
+        # 演示缩略图复用生产渲染器 build_thumbs.raster（它要 numpy）。
+        # 不另写一套「演示专用」画法：那样卡片上的图、3D 里的模型、面数统计三者会对不上。
+        run: pip install --disable-pip-version-check "numpy==${NUMPY_VERSION}"
+
+      - name: 缩略图朝向门
+        # 渲染器的帧缓冲轴序写错时，每一张缩略图都是投影的转置（躺倒 90°），
+        # 而且不报错、不缺图 —— 只有不对称网格能抓出来，所以放在产物构建之前当门。
+        run: python -X utf8 tools/thumb_orient_check.py
 
       - name: 组装 Pages 站点（合成数据 + 合成 OBJ）
         # 组装逻辑在 tools/build_site.py 里，本地用同一句命令就能复现 CD 产物：

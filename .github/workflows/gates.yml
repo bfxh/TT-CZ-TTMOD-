@@ -22,6 +22,7 @@ env:
     build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py process_obj.py
     tools/path_check.py tools/secret_check.py tools/syntax_check.py tools/_push_via_api.py
     tools/build_standalone.py tools/build_site.py tools/check_doubleclick.py
+    tools/thumb_orient_check.py
 
 jobs:
   repo-gates:

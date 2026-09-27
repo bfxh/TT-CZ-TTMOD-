@@ -22,7 +22,6 @@ from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 TEMP = os.environ.get('TEMP') or r"C:\Windows\Temp"
-SHOT = os.path.join(ROOT, '_shots')
 
 # 浏览器可执行文件：本机是 Edge，Linux runner 上通常是 Google Chrome。
 # 用 VERIFY_BROWSER 环境变量可以覆盖，省得为了换个浏览器改代码。
@@ -53,6 +52,8 @@ def _parse_args():
     ap.add_argument('--base', default='http://localhost:8800', help='静态服务地址')
     ap.add_argument('--diag', default='_diag.txt',
                     help='诊断回传落盘位置，必须与服务根目录一致')
+    ap.add_argument('--shots', default='_shots',
+                    help='截图输出目录（反复跑时换个空目录可避免清理旧图）')
     ap.add_argument('--route', action='store_true', help='只跑命令路由点击链路测试')
     return ap.parse_args()
 
@@ -62,6 +63,7 @@ PAGE = ARGS.page if os.path.isabs(ARGS.page) else os.path.join(ROOT, ARGS.page)
 PAGEDIR = os.path.dirname(PAGE)
 BASE = ARGS.base.rstrip('/')
 DIAG = ARGS.diag if os.path.isabs(ARGS.diag) else os.path.join(ROOT, ARGS.diag)
+SHOT = ARGS.shots if os.path.isabs(ARGS.shots) else os.path.join(ROOT, ARGS.shots)
 
 CHECK = r"""
 <script>
@@ -102,7 +104,7 @@ setTimeout(function(){
     var e=document.querySelector(sel); if(!e) return;
     if(getComputedStyle(e).transform!=='none') rolled.push(sel);
   });
-  var clipped=['.pane-l .pane-bg','.pane-r .pane-bg'].filter(function(sel){
+  var clipped=['.pane-l','.pane-r'].filter(function(sel){
     var e=document.querySelector(sel);
     return e && getComputedStyle(e).clipPath!=='none';
   });
@@ -153,6 +155,29 @@ setTimeout(function(){
     (niBad.length?' → '+niBad.join(','):'')+' · 判定为空模型 '+document.querySelectorAll('.cd.blank-model').length+
     ' 张 · 加载中 '+document.querySelectorAll('.cd.loading').length+' 张');
   if(cds[0]) out.push('卡片文本：'+cds[0].textContent.replace(/\s+/g,' ').trim());
+  /* 两条几何判据。它们各自对应一个真实踩过的坑，而且都是「看起来正常、量出来不对」那类：
+     ① 缩略图被裁：.th 的高度按 CARD_W 算（141），但网格列被 1fr 拉到 218，
+        img 按固有比例要 155.7 —— 被 overflow:hidden 裁掉底部 15px，下顶点整片切掉；
+     ② 行距不一致：卡片真实高 258.84 而 unit 算 255，三万多条滚到后面累计漂移上万像素，
+        滚动窗口与内容错位（演示库里只有十几行，看不出来；真实库才会炸）。 */
+  var vis=[].slice.call(document.querySelectorAll('.cd')).filter(function(e){return e.style.display!=='none';});
+  if(vis[0]){
+    var t0=vis[0].querySelector('.th'), i0=t0&&t0.querySelector('.th>img');
+    if(i0 && i0.getBoundingClientRect().height>1){
+      var tb=t0.getBoundingClientRect(), ib=i0.getBoundingClientRect();
+      var over=ib.bottom-tb.bottom;
+      out.push('缩略图裁切：.th 底 '+Math.round(tb.bottom)+' · img 底 '+Math.round(ib.bottom)+
+        ' · 溢出 '+over.toFixed(1)+'px '+((over>1)?'← 底部被裁':'✓ 完整'));
+    }
+    var pr=perRow();
+    if(vis.length>pr && S.view.length>pr){
+      var pitch=vis[pr].getBoundingClientRect().top-vis[0].getBoundingClientRect().top;
+      var per=$('spacer').clientHeight/Math.ceil(S.view.length/pr);
+      out.push('虚拟滚动几何：实测行距 '+pitch.toFixed(2)+'px · spacer 推算 '+per.toFixed(2)+
+        'px · 差 '+Math.abs(pitch-per).toFixed(2)+
+        ((Math.abs(pitch-per)>0.6)?' ← 不一致，滚远会漂移':' ✓ 一致'));
+    }
+  }
   // 筛选条：加条件应出现，点 ✕ 应消失
   try{
     document.querySelector('.rbtn[data-p=kind]').click();
@@ -200,8 +225,8 @@ setTimeout(function(){
       var vw=innerWidth, vh=innerHeight;
       // 斜切是 clip-path 做在装饰层 .pane-bg 上，文字层 .pane-in 必须保持无变换（否则会重采样变糊）
       function skew(el){
-        var bg=el.querySelector('.pane-bg'), t=el.querySelector('.pane-in');
-        return 'clip='+getComputedStyle(bg||el).clipPath.replace(/px/g,'')+
+        var t=el.querySelector('.pane-in');
+        return 'clip='+getComputedStyle(el).clipPath.replace(/px/g,'')+
                ' / 文字层 transform='+getComputedStyle(t||el).transform;
       }
       var ov=document.querySelector('#ov'), ovp=document.querySelector('#ovp');
@@ -393,21 +418,26 @@ setTimeout(function(){
       }
       if(!jumped) ok(false, '关联里的 goto 没有换到别的模型');
 
-      /* ⑥ 检查器里的缩略图必须是**一张图**，不是一句关于图的说明。
-             曾经这里退化成「（内联演示缩略图）」这种把实现细节写进界面的文字，
-             所以这条判据同时盯内容与真实性：要 naturalWidth>0，即真的解码出来了。 */
+      /* ⑥ 缩略图相关：「索引」是记录级信息、不该重复摆一张和中间 3D 一样的图；
+             「标识」区才给缩略图的**文件路径**，而且没有文件时按既有约定跳过该行。 */
       clearAll();
       vis('.cd,.lrow')[0].click();
       await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '详情面板4');
-      var tp=document.querySelector('.js-idx .tbox img');
-      if(tp){
-        await sleep(300);
-        ok(tp.naturalWidth>0,
-           '检查器「缩略图」确实渲染成图片 '+tp.naturalWidth+'×'+tp.naturalHeight+
-           (tp.naturalWidth?'':'　← 图没解码出来'));
-        ok(!/内联|演示缩略图|_res\//.test(document.querySelector('.js-idx').textContent||''),
-           '检查器里没有把打包/实现细节写成给用户看的文案');
-      } else { ok(false, '检查器里找不到缩略图预览（.js-idx .tbox img）'); }
+      var idxBox=document.querySelector('.js-idx');
+      ok(idxBox && !idxBox.querySelector('img'),
+         '索引区没有重复摆缩略图（那边只回答「这条在第几位」）');
+      var identRows=[].slice.call(document.querySelectorAll('.js-ident .r'));
+      var thumbRow=identRows.filter(function(r){
+        return (r.querySelector('.k')||{}).textContent === '缩略图'; });
+      if(S.cur && S.cur.th){
+        ok(thumbRow.length===0,
+           '缩略图是内联值（无对应文件），标识区按「缺失即跳过」不出这一行');
+      } else {
+        ok(thumbRow.length===1 && /_thumbs\//.test(thumbRow[0].textContent),
+           '标识区给出缩略图的真实文件路径「'+(thumbRow.length?thumbRow[0].textContent.trim():'缺')+'」');
+      }
+      ok(!/内联|演示缩略图|_res\/|data:image/.test(document.getElementById('ov').textContent||''),
+         '界面文案里没有把打包/实现细节写给用户看');
 
       /* ⑥b 贴图覆盖：tex 命令的「能力层」判据 —— 不只是命令被派发，
              而是纹理真的换了一茬（TEX.path 变了、TEX.tex 非空）。
@@ -509,11 +539,26 @@ def run(name, probe, budget, shot=None):
     cmd = [EDGE, '--headless=new', '--disable-gpu', '--no-sandbox', '--no-first-run',
            '--disable-extensions', '--hide-scrollbars', '--enable-unsafe-swiftshader',
            '--user-data-dir=' + prof, '--window-size=1680,1000',
+           # 「截图抓到早帧」的解药。无头 + --virtual-time-budget 下，虚拟时间里跑完的
+           # 动画/WebGL 取景未必被合成器画出来，--screenshot 于是可能拿到「总览层刚打开、
+           # 还在 opacity 淡入」的那一帧 —— 实测同一页面状态连拍 4 张出过 3 种画面
+           # （最大差 67 万像素），其中一张的面板半透明、3D 没取景，
+           # 看起来就像「信息板透光」的真 bug。
+           # 只加这一个开关就够，别再加 --disable-new-content-rendering-timeout：
+           # 它会把「内容已稳定」的计时器一起关掉，页面只要还有持续动画就永远不返回，
+           # 实测直接把自检挂死在 300s 超时上。
+           '--run-all-compositor-stages-before-draw',
            '--virtual-time-budget=%d' % budget]
     if shot:
         cmd.append('--screenshot=' + shot)
     cmd.append(BASE + '/_t.html')
-    r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, errors='replace')
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=180, errors='replace')
+    except subprocess.TimeoutExpired as exc:
+        # 单张截图挂死不该把整轮自检带走：报出来、继续跑后面的探针
+        with contextlib.suppress(OSError): os.remove(tmp)
+        raise SystemExit('浏览器在探针「%s」上超时（180s）—— 多半是页面里有永不停止的动画，'
+                         '或 --virtual-time-budget 没能在预算内让页面静止。%s' % (name, exc)) from exc
     time.sleep(1.5)
     with contextlib.suppress(OSError): os.remove(tmp)
     return r
@@ -590,7 +635,12 @@ def regions(path, kind='page'):
 
 
 os.makedirs(SHOT, exist_ok=True)
-for f in os.listdir(SHOT): os.remove(os.path.join(SHOT, f))
+# 只清旧的截图，不要把子目录也一起 os.remove 掉 —— 那会抛 PermissionError
+# 把整个自检在第 592 行炸掉（真发生过：手工裁图的 _shots/crop/ 撞出这个错）
+for _f in os.listdir(SHOT):
+    _p = os.path.join(SHOT, _f)
+    if os.path.isfile(_p):
+        os.remove(_p)
 
 if ARGS.route:
     print('══ 命令路由点击链路（信息对象 → UI 组件 → 点击 → 命令 → 能力）══')

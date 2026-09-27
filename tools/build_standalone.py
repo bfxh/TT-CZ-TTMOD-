@@ -22,10 +22,10 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import math
 import sys
-import urllib.parse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -35,91 +35,60 @@ DIST = ROOT / 'dist'
 ICONS = ROOT / '_res' / 'icons.js'
 INDEX = ROOT / 'index.html'
 
-# 与 index.html 的 KINDS 调色板保持一致：演示缩略图按类型着色，看起来才像一份真目录
-KIND_HUE = {
-    'module': '#3D7BE0', 'weapon': '#C0503F', 'mech': '#B4791F', 'mobile': '#3E8FA8',
-    'struct': '#5A5AA8', 'terrain': '#8A7355', 'foliage': '#3E8A4E', 'prop': '#B04A66',
-    'drone': '#3E9A96', 'vfx': '#A08A20', 'ui': '#7A7A82', 'collider': '#6A6A70',
-    'misc': '#8E8E96',
-}
+def _renderer():
+    """拿到生产用的缩略图渲染器（build_thumbs.raster）。
 
-# 演示缩略图的画布（与 index.html 的 thumbH()=cardW*0.72 同比例，2:1.44）
-TW, TH_ = 200, 144
-_ISO_C, _ISO_S = math.cos(math.pi / 6), math.sin(math.pi / 6)
+    演示缩略图必须**复用**它，不能自己另画一套：自己画的结果就是「包围盒线框盒」，
+    与查看器里真正加载的网格长得不一样 —— 卡片上的图、3D 里的模型、面数统计
+    三者对不上。复用同一个渲染器，等轴测角度、Lambert 明暗、分类配色天然一致。
+
+    只在需要时才导入：真实库路径（`--form js`）保持零依赖，
+    不因为演示的需求把 numpy 变成硬依赖。
+    """
+    try:
+        sys.path.insert(0, str(ROOT))
+        import build_thumbs
+    except ImportError as exc:
+        sys.exit('演示缩略图复用 build_thumbs 的渲染器，需要 numpy。'
+                 '先装：pip install numpy　（%s）' % exc)
+    return build_thumbs
 
 
-def _iso(px: float, py: float, pz: float) -> tuple[float, float]:
-    """等轴测投影：+y 朝上。x/z 张成水平面，y 是高度。"""
-    return ((px - pz) * _ISO_C, (px + pz) * _ISO_S - py)
+TH_SIZE = 256      # 演示缩略图边长（渲染器出 512，按 2×2 盒式均值降到 256）
 
 
-def demo_thumb(x: float, y: float, z: float, kind: str) -> str:
-    """按包围盒画一个等轴测线框盒，作为演示数据的缩略图（data URI）。
+def demo_thumb(verts, tris, rgb) -> str:
+    """把合成网格渲成一张真正的缩略图，返回 data URI。
 
-    为什么需要：`_thumbs/` 是 156 MB 的离线渲染产物、不入仓，所以 CI 打出来的
+    为什么需要它：`_thumbs/` 是 156 MB 的离线渲染产物、不入仓，所以 CI 打出来的
     Pages 站点与单文件产物必然没有缩略图。若什么都不给，演示站上每张卡片都会写
     「无缩略图 · 渲染未产出」—— 那是**错误的结论**（不是渲染失败，是本来就没有），
-    会让人误判成页面坏了。这里用包围盒三边现场画一张，比例真实、不需要任何资产。
+    会让人误判成页面坏了。所以这里把合成网格真渲一遍。
     """
-    hx, hy, hz = x / 2, y / 2, z / 2
-    corners = [(sx * hx, sy * hy, sz * hz)
-               for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]
-    pts = [_iso(*c) for c in corners]
-    xs = [p[0] for p in pts]
-    ys = [p[1] for p in pts]
-    span_x = max(max(xs) - min(xs), 1e-6)
-    span_y = max(max(ys) - min(ys), 1e-6)
-    pad = 22
-    k = min((TW - 2 * pad) / span_x, (TH_ - 2 * pad) / span_y)
-    cx, cy = (max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2
+    import numpy as np
 
-    def P(px: float, py: float, pz: float) -> tuple[float, float]:
-        u, v = _iso(px, py, pz)
-        return ((u - cx) * k + TW / 2, (v - cy) * k + TH_ / 2)
-
-    def quad(p0, p1, p2, p3, op: float, n: int) -> str:
-        """把一个面画成 n×n 的网格片 —— 有几条内部分割线才像「模型线框」而不是一个立方体"""
-        corners2 = [P(*p0), P(*p1), P(*p2), P(*p3)]
-        out = ['<path d="M%.1f %.1fL%.1f %.1fL%.1f %.1fL%.1f %.1fZ" fill="%s" fill-opacity="%.2f"/>'
-               % (corners2[0][0], corners2[0][1], corners2[1][0], corners2[1][1],
-                  corners2[2][0], corners2[2][1], corners2[3][0], corners2[3][1],
-                  KIND_HUE.get(kind, KIND_HUE['misc']), op)]
-        # 双线性插值取内部网格线
-        segs = []
-        for i in range(1, n):
-            t = i / n
-            a = tuple(p0[j] + (p1[j] - p0[j]) * t for j in range(3))
-            b = tuple(p3[j] + (p2[j] - p3[j]) * t for j in range(3))
-            segs.append((P(*a), P(*b)))
-            c = tuple(p0[j] + (p3[j] - p0[j]) * t for j in range(3))
-            d = tuple(p1[j] + (p2[j] - p1[j]) * t for j in range(3))
-            segs.append((P(*c), P(*d)))
-        for (ax, ay), (bx, by) in segs:
-            out.append('<path d="M%.1f %.1fL%.1f %.1f"/>' % (ax, ay, bx, by))
-        return ''.join(out)
-
-    hue = KIND_HUE.get(kind, KIND_HUE['misc'])
-    svg = (
-        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 %d %d" width="%d" height="%d">'
-        '<g stroke="%s" stroke-width="1.1" stroke-opacity=".55" fill="none" '
-        'stroke-linecap="round" stroke-linejoin="round">'
-        % (TW, TH_, TW, TH_, hue)
-        + quad((-hx, hy, -hz), (hx, hy, -hz), (hx, hy, hz), (-hx, hy, hz), 0.20, 3)     # 顶面
-        + quad((hx, -hy, -hz), (hx, hy, -hz), (hx, hy, hz), (hx, -hy, hz), 0.10, 3)     # 右侧面
-        + quad((-hx, -hy, hz), (hx, -hy, hz), (hx, hy, hz), (-hx, hy, hz), 0.15, 3)     # 前侧面
-        + '</g></svg>'
-    )
-    return 'data:image/svg+xml;charset=utf-8,' + urllib.parse.quote(svg, safe='')
+    bt = _renderer()
+    v = np.asarray(verts, dtype=np.float32)
+    f = np.asarray(tris, dtype=np.int32)
+    img = bt.raster(v, f, tuple(rgb))          # (512,512,4) uint8，已带 Lambert 明暗与透明底
+    if img is None:
+        return ''
+    n = bt.RS // TH_SIZE
+    img = img.reshape(TH_SIZE, n, TH_SIZE, n, 4).mean(axis=(1, 3)).round().astype('uint8')
+    rows = [img[y].tobytes() for y in range(TH_SIZE)]
+    return 'data:image/png;base64,' + base64.b64encode(_png(TH_SIZE, TH_SIZE, rows, alpha=True)).decode()
 
 
-def demo_mesh(x: float, y: float, z: float, seg: int) -> tuple[str, int, int]:
-    """合成一个小盒体（主体 + 顶面方台），返回 (OBJ 文本, 顶点数, 三角面数)。
+def demo_mesh(x: float, y: float, z: float, seg: int
+              ) -> tuple[str, int, int, list, list]:
+    """合成一个小盒体（主体 + 顶面方台），返回 (OBJ 文本, 顶点数, 三角面数, 顶点, 三角索引)。
 
     为什么是「合成网格」而不是「干脆不生成模型」：演示站上 3D 查看器是主功能，
     没有可加载的 OBJ 就只剩一个空壳，等于把最关键的一环演示不了。
     这里按包围盒三边现场造一个，并**用真实网格数覆盖 fa / v / s** ——
     卡片上的面数、查看器里的统计、文件大小三者必须与眼前这个网格完全一致，
     不许出现「界面写着 8 万面、实际看到 24 个三角面」这种不一致。
+    顺带把顶点/三角索引也返回：缩略图要渲的就是这一份网格，不是另画的近似形状。
     """
     verts: list[tuple[float, float, float]] = []
     normals: list[tuple[float, float, float]] = []
@@ -165,12 +134,16 @@ def demo_mesh(x: float, y: float, z: float, seg: int) -> tuple[str, int, int]:
     lines += ['v %.4f %.4f %.4f' % v for v in verts]
     lines += ['vn %.4f %.4f %.4f' % n for n in normals]
     lines += ['f %d//%d %d//%d %d//%d' % (a, ni, b, ni, c, ni) for a, b, c, ni in faces]
-    return '\n'.join(lines) + '\n', len(verts), len(faces)
+    tris = [(a - 1, b - 1, c - 1) for a, b, c, _ni in faces]     # 渲染器要 0 基索引
+    return '\n'.join(lines) + '\n', len(verts), len(faces), verts, tris
 
 
-def _png(w: int, h: int, rows: list[bytes]) -> bytes:
-    """够用的最小 PNG 编码器（真彩色、无滤波）。用 stdlib 写，不引 Pillow ——
-    这个脚本要在 CI 上零依赖跑，为了几张演示贴图不值得加一条依赖。"""
+def _png(w: int, h: int, rows: list[bytes], alpha: bool = False) -> bytes:
+    """够用的最小 PNG 编码器（无滤波）。用 stdlib 写，不引 Pillow ——
+    这个脚本要在 CI 上零依赖跑，为了几张演示图不值得加一条依赖。
+
+    alpha=True 出 RGBA（演示缩略图是透明底，直接叠在卡片底色上，
+    不透明底会在深色主题下漏出一圈白边）。"""
     import struct
     import zlib
 
@@ -180,12 +153,12 @@ def _png(w: int, h: int, rows: list[bytes]) -> bytes:
         return (struct.pack('>I', len(data)) + tag + data
                 + struct.pack('>I', zlib.crc32(tag + data) & 0xFFFFFFFF))
 
-    ihdr = struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)
+    ihdr = struct.pack('>IIBBBBB', w, h, 8, 6 if alpha else 2, 0, 0, 0)
     return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr)
             + chunk(b'IDAT', zlib.compress(raw, 9)) + chunk(b'IEND', b''))
 
 
-def demo_texture(kind: str, role: str = 'd') -> bytes:
+def demo_texture(rgb: tuple[int, int, int], role: str = 'd') -> bytes:
     """合成一张 64×64 棋盘格贴图。
 
     为什么贴图也要真造出来：演示站上「点贴图即覆盖」是被明确要求过的功能，
@@ -194,11 +167,10 @@ def demo_texture(kind: str, role: str = 'd') -> bytes:
     role='n' 造法线贴图色（偏蓝紫），让「漫反射 / 法线」两张缩略图一眼可区分。
     """
     n, px = 8, 8
-    base = KIND_HUE.get(kind, KIND_HUE['misc'])
     if role == 'n':
         r, g, b = 128, 138, 250
     else:
-        r, g, b = int(base[1:3], 16), int(base[3:5], 16), int(base[5:7], 16)
+        r, g, b = rgb
     light = (r, g, b)
     dark = (int(r * 0.45), int(g * 0.45), int(b * 0.45))
     rows = []
@@ -217,6 +189,8 @@ def demo_texture(kind: str, role: str = 'd') -> bytes:
 def write_demo_assets(items: list[dict], base: Path) -> tuple[int, int]:
     """把合成网格与合成贴图按 items 里的 `p` / `tl` 落到磁盘，路径与真实资产完全一致 ——
     这样 3D 查看器与贴图覆盖都不需要任何「演示模式」分支。"""
+    palette = _renderer().KIND_COLOR
+    default = _renderer().DEFAULT_COLOR
     n_obj = n_tex = 0
     for it in items:
         dst = base / it['p']
@@ -226,7 +200,8 @@ def write_demo_assets(items: list[dict], base: Path) -> tuple[int, int]:
         for rel in it.get('tl', []):
             t = base / rel
             t.parent.mkdir(parents=True, exist_ok=True)
-            t.write_bytes(demo_texture(it['k'], 'n' if rel.endswith('_n.png') else 'd'))
+            t.write_bytes(demo_texture(palette.get(it['k'], default),
+                                       'n' if rel.endswith('_n.png') else 'd'))
             n_tex += 1
     return n_obj, n_tex
 
@@ -241,6 +216,7 @@ def demo_items() -> list[dict]:
     kinds = ['module', 'weapon', 'mech', 'mobile', 'struct', 'terrain', 'foliage',
              'prop', 'drone', 'vfx', 'ui', 'collider', 'misc']
     games = ['tt', 'wr', 'is']
+    bt = _renderer()
     out: list[dict] = []
     i = 0
     for gi, g in enumerate(games):
@@ -251,7 +227,7 @@ def demo_items() -> list[dict]:
                 x = round(unit * (0.6 + 0.09 * ki), 2)
                 y = round(unit * (0.45 + 0.05 * rep), 2)
                 z = round(unit * (0.7 + 0.06 * ki), 2)
-                obj, nv, nfa = demo_mesh(x, y, z, 1 + (i * 5) % 7)
+                obj, nv, nfa, mverts, mtris = demo_mesh(x, y, z, 1 + (i * 5) % 7)
                 # 标记阈值贴着**真实生成的面数区间**（24 ~ 888）取，不要照搬真实目录的
                 # 量级（那里动辄上万面）—— 否则演示站上 low / hi / big 三个标记永远不出现，
                 # 「按标记筛选」这条链路就演示不出来。
@@ -283,7 +259,7 @@ def demo_items() -> list[dict]:
                     'tr': (['diffuse'] + (['normal'] if len(texs) > 1 else [])) if has_tex else [],
                     'tq': 2 if has_tex else 0,
                     'tg': tg,
-                    'th': demo_thumb(x, y, z, k),
+                    'th': demo_thumb(mverts, mtris, bt.KIND_COLOR.get(k, bt.DEFAULT_COLOR)),
                     '_obj': obj,
                 })
                 i += 1

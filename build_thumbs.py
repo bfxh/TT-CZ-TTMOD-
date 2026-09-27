@@ -154,10 +154,14 @@ def raster(v, f, color):
         hi_y = min(int(np.ceil(max(ty0, ty1, ty2))), RS - 1)
         if lo_x > hi_x or lo_y > hi_y:
             continue
-        xs = np.arange(lo_x, hi_x + 1, dtype=np.float32) + 0.5
-        ys = np.arange(lo_y, hi_y + 1, dtype=np.float32) + 0.5
-        dx = xs[:, None] - tx0
-        dy = ys[None, :] - ty0
+        # 缓冲区的轴序必须是 [行=y, 列=x]，因为最后是 `Image.fromarray(img)` ——
+        # 它按 axis 0 分行。曾经这里写成了 [x][y]（数组是投影的转置），
+        # 结果是**每一张缩略图都躺倒 90°**：高瘦的模型渲成扁宽的、车头朝侧边。
+        # 判据见 tools/thumb_orient_check.py（不对称网格的着墨范围必须等于投影范围）。
+        ys = np.arange(lo_y, hi_y + 1, dtype=np.float32) + 0.5      # 行
+        xs = np.arange(lo_x, hi_x + 1, dtype=np.float32) + 0.5      # 列
+        dx = xs[None, :] - tx0
+        dy = ys[:, None] - ty0
         v0x, v0y = tx1 - tx0, ty1 - ty0
         v1x, v1y = tx2 - tx0, ty2 - ty0
         b1 = (dx * v1y - v1x * dy) * inv[t]
@@ -167,13 +171,13 @@ def raster(v, f, color):
         if not inside.any():
             continue
         zz = b0 * z0[t] + b1 * z1[t] + b2 * z2[t]
-        sub_z = zbuf[lo_x:hi_x + 1, lo_y:hi_y + 1]
+        sub_z = zbuf[lo_y:hi_y + 1, lo_x:hi_x + 1]
         win = inside & (zz > sub_z)
         if not win.any():
             continue
         sub_z[win] = zz[win]
-        sbuf[lo_x:hi_x + 1, lo_y:hi_y + 1][win] = shade[t]
-        abuf[lo_x:hi_x + 1, lo_y:hi_y + 1] |= win
+        sbuf[lo_y:hi_y + 1, lo_x:hi_x + 1][win] = shade[t]
+        abuf[lo_y:hi_y + 1, lo_x:hi_x + 1] |= win
 
     if not abuf.any():
         # 面全是退化面（叉积≈0）的模型：星空 / 粒子云 —— 它们没有表面，
@@ -201,9 +205,9 @@ def thumb_path(i):
 
 
 def work(task):
-    i, rel, kind = task
+    i, rel, kind, force = task
     dst = thumb_path(i)
-    if os.path.exists(dst):
+    if os.path.exists(dst) and not force:
         return 'skip'
     src = os.path.join(ROOT, rel)
     if not os.path.exists(src):
@@ -230,12 +234,14 @@ def main():
     ap.add_argument('--sample', type=int, default=0)
     ap.add_argument('--workers', type=int, default=os.cpu_count() or 8)
     ap.add_argument('--shuffle', action='store_true')
+    ap.add_argument('--force', action='store_true',
+                    help='渲染器改过之后整体重出（默认按文件存在跳过）')
     a = ap.parse_args()
 
     with open(CATALOG, encoding='utf-8') as fh:
         data = json.load(fh)
     items = data['items'] if isinstance(data, dict) else data
-    tasks = [(it['id'], it['p'], it.get('k')) for it in items if it.get('p')]
+    tasks = [(it['id'], it['p'], it.get('k'), a.force) for it in items if it.get('p')]
     if a.shuffle or a.sample:
         random.seed(7)
         random.shuffle(tasks)
