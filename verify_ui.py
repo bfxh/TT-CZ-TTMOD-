@@ -3,20 +3,65 @@
    · 页面把诊断结果 POST 到 /diag → 落盘 _diag.txt
    · 每个探针截图，并用像素分析 + ASCII 版面缩略图核实分区
 关键：profile 目录要保留、必须带 --no-first-run，否则 Edge 停在首启页出白图。
+
+用法：
+  python verify_ui.py                              # 完整跑（需本地服务在 8800）
+  python verify_ui.py --route                      # 只跑命令路由点击链路
+  python verify_ui.py --page _site/index.html --base http://localhost:8801 \
+                      --diag _site/_diag.txt       # 直接验 CD 产物（Pages 上线前先本地过一遍）
 """
+import argparse
 import contextlib
 import os
 import subprocess
+import sys
 import time
 
 import numpy as np
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-EDGE = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 TEMP = os.environ.get('TEMP') or r"C:\Windows\Temp"
 SHOT = os.path.join(ROOT, '_shots')
-DIAG = os.path.join(ROOT, '_diag.txt')
+
+# 浏览器可执行文件：本机是 Edge，Linux runner 上通常是 Google Chrome。
+# 用 VERIFY_BROWSER 环境变量可以覆盖，省得为了换个浏览器改代码。
+BROWSER_CANDIDATES = [
+    os.environ.get('VERIFY_BROWSER', ''),
+    r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+    r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+]
+
+
+def pick_browser() -> str:
+    for p in BROWSER_CANDIDATES:
+        if p and os.path.isfile(p):
+            return p
+    return BROWSER_CANDIDATES[1]
+
+
+EDGE = pick_browser()
+
+
+def _parse_args():
+    ap = argparse.ArgumentParser(description='真实浏览器界面自检')
+    ap.add_argument('--page', default='index.html', help='被测页面（相对本目录或绝对路径）')
+    ap.add_argument('--base', default='http://localhost:8800', help='静态服务地址')
+    ap.add_argument('--diag', default='_diag.txt',
+                    help='诊断回传落盘位置，必须与服务根目录一致')
+    ap.add_argument('--route', action='store_true', help='只跑命令路由点击链路测试')
+    return ap.parse_args()
+
+
+ARGS = _parse_args()
+PAGE = ARGS.page if os.path.isabs(ARGS.page) else os.path.join(ROOT, ARGS.page)
+PAGEDIR = os.path.dirname(PAGE)
+BASE = ARGS.base.rstrip('/')
+DIAG = ARGS.diag if os.path.isabs(ARGS.diag) else os.path.join(ROOT, ARGS.diag)
 
 CHECK = r"""
 <script>
@@ -51,15 +96,18 @@ setTimeout(function(){
     if(c.filter && c.filter!=='none') bad.push(sel+' filter');
   });
   // 斜切必须用 clip-path 做外形，不能真 3D 旋转 —— 实测 rotateY 把文字锐度砍到 35%
-  var tilted=[];
+  // 外形现在由装饰层 .pane-bg 承载（.pane 负责裁切、.pane-in 只放文字），所以查 .pane-bg
+  var rolled=[];
   ['.pane-l .pane-in','.pane-r .pane-in'].forEach(function(sel){
     var e=document.querySelector(sel); if(!e) return;
-    if(getComputedStyle(e).transform!=='none') tilted.push(sel);
+    if(getComputedStyle(e).transform!=='none') rolled.push(sel);
   });
-  var clipped=['.pane-l','.pane-r'].filter(function(sel){
+  var clipped=['.pane-l .pane-bg','.pane-r .pane-bg'].filter(function(sel){
     var e=document.querySelector(sel);
     return e && getComputedStyle(e).clipPath!=='none';
   });
+  var tiltNote = rolled.length ? ('真 3D 旋转 ← 文字会糊 ' + rolled.join(','))
+                               : ('clip-path 外形 ' + clipped.length + '/2 块，文字 1:1');
   var anim=getComputedStyle(document.querySelector('.ovp')).animationName;
   var kf=(function(){
     for(var i=0;i<document.styleSheets.length;i++){
@@ -69,7 +117,7 @@ setTimeout(function(){
     return '';
   })();
   out.push('清晰度隐患：'+(bad.length?bad.join(' / '):'无')+
-    ' · 斜切实现 '+(tilted.length?('真 3D 旋转 ← 会糊 '+tilted.join(',')):('clip-path 外形 '+clipped.length+' 块，文字 1:1'))+
+    ' · 斜切实现 '+tiltNote+
     ' · 入场动画 ['+anim+'] '+(/scale/.test(kf)?'含 scale ← 会整体重采样':'只动 opacity'));
   // 头部控件绝对不许藏（曾经用媒体查询 display:none 静默消失）
   var hidden=[];
@@ -150,7 +198,12 @@ setTimeout(function(){
       var o=[], cv=document.querySelector('#shview canvas');
       var pans=document.querySelectorAll('.pane');
       var vw=innerWidth, vh=innerHeight;
-      function skew(el){ return getComputedStyle(el.querySelector('.pane-in')).transform; }
+      // 斜切是 clip-path 做在装饰层 .pane-bg 上，文字层 .pane-in 必须保持无变换（否则会重采样变糊）
+      function skew(el){
+        var bg=el.querySelector('.pane-bg'), t=el.querySelector('.pane-in');
+        return 'clip='+getComputedStyle(bg||el).clipPath.replace(/px/g,'')+
+               ' / 文字层 transform='+getComputedStyle(t||el).transform;
+      }
       var ov=document.querySelector('#ov'), ovp=document.querySelector('#ovp');
       function R(e){ var r=e.getBoundingClientRect();
         return Math.round(r.left)+','+Math.round(r.top)+' '+Math.round(r.width)+'×'+Math.round(r.height); }
@@ -168,7 +221,7 @@ setTimeout(function(){
       var ths=document.querySelectorAll('#texbar .tb-th');
       o.push('贴图排 '+(document.querySelector('#texbar').classList.contains('on')?'显示':'隐藏')+
         ' · 缩略图 '+ths.length+' · 原始材质钮 '+document.querySelectorAll('#texbar .tb-chip').length+
-        ' · 平铺档 '+[].map.call(document.querySelectorAll('#texbar [data-tile]'),function(b){return b.textContent}).join('')+
+        ' · 平铺档 '+[].map.call(document.querySelectorAll('#texbar [data-act^="tile:"]'),function(b){return b.textContent}).join('')+
         ' · 亮度滑杆 '+(document.querySelector('#tbBright')?'有':'无'));
       o.push('默认覆盖 '+TEX.path+' / 高亮项 '+document.querySelectorAll('#texbar .tb-th.on').length);
       if(ths.length>1){
@@ -178,7 +231,7 @@ setTimeout(function(){
       }
       document.querySelector('#texbar .tb-chip').click();
       o.push('点「原始材质」后 TEX.path='+TEX.path+' / 高亮 chip '+document.querySelectorAll('#texbar .tb-chip.on').length);
-      var tile2=document.querySelectorAll('#texbar [data-tile]')[1];
+      var tile2=document.querySelectorAll('#texbar [data-act^="tile:"]')[1];
       if(tile2){ tile2.click(); o.push('点平铺 ×2 后 TEX.tile='+TEX.tile); }
       o.push('HUD '+[].map.call(document.querySelectorAll('#shhud .vbtn'),function(b){return b.textContent}).join(' / '));
       o.push('状态行 '+document.querySelector('#shstat').textContent);
@@ -220,6 +273,218 @@ setTimeout(function(){
 </body>"""
 
 
+# ── 命令路由探针：把「点击 → 命令 → 能力」这条链路真的走一遍 ──────────────
+# 判据刻意分两层：
+#   ① 派发层 —— 点击确实到达了 ACTIONS 里对应的那个命令（用包装器记录，与具体能力无关）
+#   ② 能力层 —— 状态类命令必须留下可验证的后果（筛选生效 / 面板收起 / 换到另一个模型）
+# 只测 ① 会漏掉「命令名写对、函数体是空的」；只测 ② 会漏掉「绕开路由直接改状态」。
+# 另外还有一层静态判据：页面上每个 data-act 的命令名都必须真的存在于 ACTIONS ——
+# 命令名打错时点击会静默无反应，这是这一类设计里最难查的坏法。
+ROUTE = r"""
+<script>
+window.__errs=[]; window.onerror=function(m,s,l){__errs.push(m+'@'+l);};
+setTimeout(function(){
+  var L=[], BAD=[];
+  var ok=function(c,m){ L.push((c?'  ✓ ':'  ✗ ')+m); if(!c) BAD.push(m); };
+  var sleep=function(ms){ return new Promise(function(r){ setTimeout(r,ms); }); };
+  var wait=async function(f,ms,tag){ var t0=Date.now();
+    while(!f()){ if(Date.now()-t0>ms) throw new Error('等待超时 '+tag); await sleep(80); } };
+  var vis=function(sel){ return [].slice.call(document.querySelectorAll(sel))
+    .filter(function(e){ return e.getBoundingClientRect().width>0; }); };
+  var cmdOf=function(e){ return String(e.dataset.act).split(':')[0]; };
+  /* 参数一律从 data-act 里读、URL 解码 —— 页面侧同理（index.html 的 actArg）。
+     曾经验证脚本自己另存了一份 data-t 来比对，属性一改名就整片误判。 */
+  var actArg=function(e){ var r=String(e.dataset.act||''), i=r.indexOf(':');
+    return i<0?'':decodeURIComponent(r.slice(i+1)); };
+  var unknownCmd=function(root){
+    var bad={}, n=0;
+    [].forEach.call((root||document).querySelectorAll('[data-act]'), function(e){
+      n++; var c=cmdOf(e); if(!(c in ACTIONS)) bad[c]=String(e.dataset.act).slice(0,48);
+    });
+    return {n:n, bad:bad};
+  };
+  (async function(){
+    try{
+      /* 注意：index.html 里 S / ACTIONS / MESH / R3 都是顶层 const|let，
+         它们进的是全局**词法**环境，不挂到 window 上 —— 所以只能写裸名，
+         想判存在性要用 typeof（`window.S` 恒为 undefined，这个坑探针里踩过一次）。 */
+      await wait(function(){ return typeof S!=='undefined' && S.items && S.items.length>0; },
+                 25000, '目录载入');
+      await wait(function(){ return vis('.cd,.lrow').length>0; }, 12000, '卡片渲染');
+      L.push('  目录 '+S.items.length+' 条 · 屏上卡片 '+vis('.cd,.lrow').length+' 张');
+
+      /* 挂派发记录：包装 ACTIONS 而不改任何调用点 */
+      var seen=[];
+      Object.keys(ACTIONS).forEach(function(k){
+        var f=ACTIONS[k];
+        ACTIONS[k]=function(){ seen.push(k); return f.apply(ACTIONS, arguments); };
+      });
+      var fired=function(k){ return seen.indexOf(k)>=0; };
+      var reset=function(){ seen.length=0; };
+      var clearAll=function(){
+        var b=document.querySelector('#fbar .clr'); if(b) b.click();
+        S.f={game:null,kind:null,fac:null}; S.tag=null; S.q=''; document.getElementById('q').value='';
+        recount(); apply();
+      };
+
+      /* ① 点卡片 → 详情面板 */
+      vis('.cd,.lrow')[0].click();
+      await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 10000, '详情面板');
+      ok(!!S.cur, '点卡片 → 详情面板打开（当前 #'+(S.cur?S.cur.id:'-')+'）');
+
+      /* ② 命令名全覆盖：此刻页面上能点的组件最多（筛选条 + 两个信息板 + 顶部操作），
+             逐个核对 data-act 的命令名真的存在于 ACTIONS。命令名写错时点击会**静默无反应**，
+             这是这类设计里最难查的坏法，所以放在这里当静态判据。
+             判据必须要求「至少扫到 N 个」—— 扫到 0 个时「全部合法」是空真，不算通过。 */
+      var u0=unknownCmd();
+      ok(u0.n>=8 && Object.keys(u0.bad).length===0,
+         '面板展开时全页 '+u0.n+' 个可点组件，命令名全部存在于 ACTIONS'+
+         (Object.keys(u0.bad).length?'　← 非法: '+JSON.stringify(u0.bad):''));
+
+      /* ③ 面板里的命令区：条数**刻意克制**，且每条命令名合法、需要后端的带了 local 标记。
+             「信息对象 → 可点组件 → 命令 → 能力」不是把每个字段都做成按钮 ——
+             所以这里同时盯上限：命令区超过 6 条就说明又开始铺按钮了。 */
+      var u1=unknownCmd(document.querySelector('.js-cmd')||document);
+      var cb=document.querySelectorAll('.js-cmd .cbtn');
+      var loc=document.querySelectorAll('.js-cmd .cbtn.local');
+      ok(cb.length>=4 && cb.length<=6,
+         '命令区 '+cb.length+' 条命令（刻意的克制区间 4~6 条，不是把字段铺满）');
+      ok(u1.n>=4 && Object.keys(u1.bad).length===0,
+         '命令区 '+u1.n+' 个命令名全部合法'+(Object.keys(u1.bad).length?'　← '+JSON.stringify(u1.bad):''));
+      ok(loc.length>=2, '其中 '+loc.length+' 个标注了「需要本地服务」（能力边界提前说明）');
+
+      /* ③ 分类 chip → filter：命令被派发 + 面板收起 + 结果真的变了 */
+      var before=S.view.length;
+      var chipKind=document.querySelector('.js-kind .chip.act');
+      if(chipKind){
+        reset(); chipKind.click(); await sleep(350);
+        ok(fired('filter'), '点分类 chip「'+chipKind.textContent.trim()+'」→ filter 被派发');
+        ok(!document.getElementById('ov').classList.contains('on'), '执行后详情面板自动收起');
+        ok(S.view.length!==before, '筛选有真实后果：结果 '+before+' → '+S.view.length+' 条');
+      } else { ok(false, '找不到 .js-kind .chip.act'); }
+
+      /* ④ 标记 chip → filter:tag */
+      clearAll();
+      vis('.cd,.lrow')[0].click();
+      await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 10000, '详情面板2');
+      var chipTag=document.querySelector('.js-tags .chip.act');
+      if(chipTag){
+        var n0=S.view.length; reset(); chipTag.click(); await sleep(350);
+        ok(fired('filter') && !!S.tag,
+           '点标记 chip → filter:tag 生效（tag='+S.tag+'，结果 '+n0+' → '+S.view.length+' 条）');
+      } else { ok(false, '找不到 .js-tags .chip.act'); }
+
+      /* ⑤ 关联「同名族 / 共用首张贴图」→ goto：必须真的换到另一个模型 */
+      clearAll();
+      var jumped=false;
+      for(var attempt=0; attempt<6 && !jumped; attempt++){
+        var cards=vis('.cd,.lrow'); if(!cards[attempt]) break;
+        cards[attempt].click();
+        await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '详情面板3');
+        var g=document.querySelector('.js-rel [data-act^="goto:"]');
+        if(!g) continue;
+        var id0=S.cur.id; reset(); g.click();
+        await sleep(400);
+        if(fired('goto') && S.cur && S.cur.id!==id0){
+          jumped=true;
+          ok(true, '点关联「'+g.parentNode.querySelector('.k').textContent.trim()+
+                   '」→ goto 跳到 #'+id0+' → #'+S.cur.id);
+        }
+      }
+      if(!jumped) ok(false, '关联里的 goto 没有换到别的模型');
+
+      /* ⑥ 检查器里的缩略图必须是**一张图**，不是一句关于图的说明。
+             曾经这里退化成「（内联演示缩略图）」这种把实现细节写进界面的文字，
+             所以这条判据同时盯内容与真实性：要 naturalWidth>0，即真的解码出来了。 */
+      clearAll();
+      vis('.cd,.lrow')[0].click();
+      await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '详情面板4');
+      var tp=document.querySelector('.js-idx .tbox img');
+      if(tp){
+        await sleep(300);
+        ok(tp.naturalWidth>0,
+           '检查器「缩略图」确实渲染成图片 '+tp.naturalWidth+'×'+tp.naturalHeight+
+           (tp.naturalWidth?'':'　← 图没解码出来'));
+        ok(!/内联|演示缩略图|_res\//.test(document.querySelector('.js-idx').textContent||''),
+           '检查器里没有把打包/实现细节写成给用户看的文案');
+      } else { ok(false, '检查器里找不到缩略图预览（.js-idx .tbox img）'); }
+
+      /* ⑥b 贴图覆盖：tex 命令的「能力层」判据 —— 不只是命令被派发，
+             而是纹理真的换了一茬（TEX.path 变了、TEX.tex 非空）。
+             优先找有两张贴图的模型（这样能验证「换」这个动作），找不到就退而验单张。 */
+      clearAll();
+      var tex2=false, tex1=false;
+      for(var t=0; t<20 && !tex2; t++){
+        var cs=vis('.cd,.lrow'); if(!cs[t]) break;
+        cs[t].click();
+        await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 8000, '详情面板T');
+        var ths=[].slice.call(document.querySelectorAll('#texbar .tb-th')).filter(function(b){
+          return !b.classList.contains('miss'); });
+        if(!ths.length) continue;
+
+        if(ths.length>=2){
+          var p0=TEX.path;
+          reset(); ths[1].click(); await sleep(700);
+          ok(fired('tex') && actArg(ths[1])===TEX.path && TEX.path!==p0,
+             '点第 2 张贴图缩略图 → tex 覆盖：'+String(p0).split('/').pop()+' → '+
+             String(TEX.path).split('/').pop());
+          ok(!!TEX.tex, '贴图纹理真的挂进了材质（TEX.tex 非空）');
+          tex2=true;
+        } else if(!tex1){
+          reset(); ths[0].click(); await sleep(700);
+          ok(fired('tex') && actArg(ths[0])===TEX.path,
+             '点贴图缩略图 → tex 覆盖：'+String(TEX.path).split('/').pop()+'（该模型只有 1 张）');
+          tex1=true;
+        }
+      }
+      if(!tex1 && !tex2) ok(false, '20 个模型里都没找到一张可点的贴图');
+      else if(!tex2) L.push('  ○ 前 20 个模型都没有第 2 张贴图，本次只走了「单张覆盖」这条路径');
+
+      /* ⑥c 平铺档：tile 命令必须真的改到 TEX.tile（贴图排此前绕开路由自己绑事件，已被这次自检抓出） */
+      if(document.getElementById('ov').classList.contains('on')){
+        var t2=document.querySelectorAll('#texbar [data-act^="tile:"]')[1];
+        if(t2){
+          reset(); t2.click(); await sleep(300);
+          ok(fired('tile') && TEX.tile===+String(t2.dataset.act).slice(5),
+             '点平铺档「'+t2.textContent+'」→ tile 命令生效，TEX.tile='+TEX.tile);
+        } else { ok(false, '贴图排里没有平铺档按钮'); }
+      } else { L.push('  ○ 贴图排未打开，平铺档未验'); }
+
+      /* ⑦ 3D：真的加载出网格才算这条链路的终点成立。
+             但要区分「环境没有 WebGL」与「页面真的加载不出模型」——前者是运行环境的能力
+             边界，判成失败会让整套自检在无 GPU 的 CI 上永远红；后者才是真 bug。 */
+      clearAll();
+      vis('.cd,.lrow')[0].click();
+      await wait(function(){ return document.getElementById('ov').classList.contains('on'); }, 10000, '详情面板5');
+      try{
+        await wait(function(){ return typeof MESH!=='undefined' && !!MESH; }, 15000, '3D 网格');
+        var st=document.getElementById('shstat').textContent||'';
+        ok(true, '3D 预览加载出网格：'+st.slice(0,70));
+      }catch(e){
+        if(typeof R3!=='undefined' && R3){ ok(false, '3D 渲染器已建立，但网格没加载出来（'+S.cur.p+'）'); }
+        else { L.push('  ○ 本环境拿不到 WebGL 上下文，3D 预览无法判定（不计入通过/失败）'); }
+      }
+
+      /* ⑧ 图标健康度：命令区的图标必须真的画出来 */
+      var holes=[], nIcon=0;
+      [].forEach.call(document.querySelectorAll('[data-i]'), function(e){
+        nIcon++; if(!e.querySelector('svg')) holes.push(e.dataset.i);
+      });
+      ok(nIcon>=20 && holes.length===0, '全页 '+nIcon+' 个图标占位全部画成实心符号'+
+         (holes.length?'　← 空: '+holes.slice(0,8).join(','):''));
+    }catch(e){
+      ok(false, '探针异常：'+(e && e.message || e));
+    }
+    L.push('  JS 错误 '+(window.__errs && window.__errs.length ? window.__errs.join(';') : '无'));
+    L.push('');
+    L.push(BAD.length ? ('路由自检：'+BAD.length+' 项未过') : '路由自检：全部通过');
+    try{ fetch('/diag',{method:'POST',body:L.join('\n')}); }catch(e){}
+  })();
+},3200);
+</script>
+</body>"""
+
+
 def warm(prof):
     """全新 profile 直接跑 --headless=new 会静默不出结果（首启初始化吃掉虚拟时间预算），
     先空跑一次捂热；已存在的 profile 直接跳过。"""
@@ -232,10 +497,11 @@ def warm(prof):
 
 
 def run(name, probe, budget, shot=None):
-    with open(os.path.join(ROOT, 'index.html'), encoding='utf-8') as fh:
+    with open(PAGE, encoding='utf-8') as fh:
         src = fh.read()
     src = src.replace('</body>', probe, 1)
-    tmp = os.path.join(ROOT, '_t.html')
+    # 注入后的临时页必须落在**被服务的那棵树下**，否则相对路径（_res/、models/）全断
+    tmp = os.path.join(PAGEDIR, '_t.html')
     with open(tmp, 'w', encoding='utf-8') as fh:
         fh.write(src)
     prof = os.path.join(TEMP, '_vh_' + name)          # 保留 profile，不要删
@@ -246,7 +512,7 @@ def run(name, probe, budget, shot=None):
            '--virtual-time-budget=%d' % budget]
     if shot:
         cmd.append('--screenshot=' + shot)
-    cmd.append('http://localhost:8800/_t.html')
+    cmd.append(BASE + '/_t.html')
     r = subprocess.run(cmd, capture_output=True, text=True, timeout=300, errors='replace')
     time.sleep(1.5)
     with contextlib.suppress(OSError): os.remove(tmp)
@@ -325,6 +591,13 @@ def regions(path, kind='page'):
 
 os.makedirs(SHOT, exist_ok=True)
 for f in os.listdir(SHOT): os.remove(os.path.join(SHOT, f))
+
+if ARGS.route:
+    print('══ 命令路由点击链路（信息对象 → UI 组件 → 点击 → 命令 → 能力）══')
+    print('   被测页面 %s  ·  服务 %s' % (os.path.relpath(PAGE, ROOT), BASE))
+    run('route', ROUTE, 40000)
+    print(read_diag('route'))
+    sys.exit(0)
 
 print('══ 1. 结构自检（真实浏览器 DOM）══')
 run('check', CHECK, 22000)

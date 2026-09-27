@@ -14,6 +14,13 @@ _res/geom_cache.json
 _res/catalog.json
 _res/*.gz
 _res/run_server.py
+# _res/catalog.js 由 tools/build_standalone.py 生成（13 MB，让 file:// 也能读到数据）；
+# 它就是上面 catalog_v3.json 的另一种写法，同样不入仓 —— 谁需要谁本地生成一条命令。
+_res/catalog.js
+
+# ── 打包产物：tools/build_standalone.py 与 cd.yml 生成 ───────
+dist/
+_site/
 
 # ── 运行期产物 ───────────────────────────────────────────────
 _shots/

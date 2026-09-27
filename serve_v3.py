@@ -4,7 +4,12 @@
   /                -> index.html (新 UI) / viewer.html (旧 UI)
   /catalog_v3.json -> 统一目录
   /open?path=...   -> 在资源管理器中定位文件
+
+用法：
+  python serve_v3.py                                   # 本地资产库（默认 8800 起找空位）
+  python serve_v3.py --root _site --port 8801          # 本地预览 CD 产物，与 Pages 同一套相对路径
 """
+import argparse
 import gzip
 import os
 import socket
@@ -14,6 +19,9 @@ import urllib.parse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+# 实际对外服务的根。默认就是本目录；`--root _site` 时可以原样预览 CD 打出来的站点，
+# 相对路径（_res/、models/）与线上完全一致 —— 上线前先本地过一遍，别拿线上当调试环境。
+SITEDIR = ROOT
 
 # 启动时预压缩大文件，避免每次请求都压
 GZIP_TARGETS = ['catalog_v3.json', '_res/three.min.js', '_res/OBJLoader.js', '_res/OrbitControls.js']
@@ -21,7 +29,7 @@ GZIP_TARGETS = ['catalog_v3.json', '_res/three.min.js', '_res/OBJLoader.js', '_r
 
 def ensure_gzip():
     for rel in GZIP_TARGETS:
-        src = os.path.join(ROOT, rel)
+        src = os.path.join(SITEDIR, rel)
         dst = src + '.gz'
         if not os.path.exists(src):
             continue
@@ -46,7 +54,7 @@ MIME = {
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory=ROOT, **kwargs)
+        super().__init__(*args, directory=SITEDIR, **kwargs)
 
     def guess_type(self, path):
         ext = os.path.splitext(path)[1].lower()
@@ -71,7 +79,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path.split('?')[0] in ('', '/', '/index.html'):
             self.path = '/index.html'
         rel = urllib.parse.unquote(self.path.split('?')[0]).lstrip('/')
-        gz = os.path.join(ROOT, rel + '.gz')
+        gz = os.path.join(SITEDIR, rel + '.gz')
         if os.path.isfile(gz) and 'gzip' in self.headers.get('Accept-Encoding', ''):
             self.send_response(200)
             self.send_header('Content-Type', self.guess_type(rel))
@@ -92,7 +100,7 @@ class Handler(SimpleHTTPRequestHandler):
             return self.send_error(404)
         n = int(self.headers.get('Content-Length') or 0)
         body = self.rfile.read(n) if n else b''
-        with open(os.path.join(ROOT, '_diag.txt'), 'wb') as f:
+        with open(os.path.join(SITEDIR, '_diag.txt'), 'wb') as f:
             f.write(body)
         self.send_response(204)
         self.send_header('Access-Control-Allow-Origin', '*')
@@ -102,8 +110,8 @@ class Handler(SimpleHTTPRequestHandler):
     def handle_open(self):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
         rel = (q.get('path', [''])[0] or '').replace('..', '').lstrip('/\\')
-        full = os.path.normpath(os.path.join(ROOT, rel))
-        if not full.startswith(ROOT):
+        full = os.path.normpath(os.path.join(SITEDIR, rel))
+        if not full.startswith(SITEDIR):
             return self.json(403, {'ok': False, 'error': 'forbidden'})
         if not os.path.exists(full):
             return self.json(404, {'ok': False, 'error': 'not found'})
@@ -139,13 +147,21 @@ def find_port(start=8800, end=8900):
 
 
 if __name__ == '__main__':
+    ap = argparse.ArgumentParser(description='Asset Vault 静态服务器')
+    ap.add_argument('--root', default=ROOT, help='站点根目录（默认本目录）')
+    ap.add_argument('--port', type=int, default=0, help='端口，0 = 从 8800 起自动找空位')
+    a = ap.parse_args()
+    SITEDIR = os.path.abspath(a.root)
+    if not os.path.isdir(SITEDIR):
+        sys.exit('目录不存在：%s' % SITEDIR)
+
     print('准备静态资源…')
     ensure_gzip()
-    port = find_port()
+    port = a.port or find_port()
     srv = ThreadingHTTPServer(('127.0.0.1', port), Handler)
     print('Asset Vault  ->  http://localhost:%d' % port)
-    print('旧版查看器   ->  http://localhost:%d/viewer.html' % port)
-    print('目录根       :  %s' % ROOT)
+    print('后端诊断通道 ->  POST /diag 落盘到 %s' % os.path.join(SITEDIR, '_diag.txt'))
+    print('目录根       :  %s' % SITEDIR)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
