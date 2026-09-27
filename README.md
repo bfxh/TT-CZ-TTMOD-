@@ -13,17 +13,25 @@
 
 | 方式 | 要做什么 | 得到什么 |
 |---|---|---|
-| **在线看**（最少） | 点开 GitHub Pages 链接 | 完整界面 + 3D 预览，跑的是**合成数据**（页面顶部有提示条） |
-| **单文件** | 下载 `dist/资产库.html`，双击 | 完整界面，数据已内联；3D 预览与「定位文件」需要本地服务 |
-| **本地目录** | `python tools/build_standalone.py --only-js` 后双击 `index.html` | 完整界面 + 真实目录；缩略图要另跑 `build_thumbs.py` |
+| **在线看**（最少） | 点开 <https://bfxh.github.io/TT-CZ-TTMOD-/> | 完整界面 + 3D 预览，跑的是**合成数据**（页面顶部有提示条） |
+| **单文件** | 下载 Release 里的 `资产库-<tag>.html`，双击 | 完整界面，图标与数据全内联；3D 与「定位文件」需要本地服务 |
+| **本地目录** | `python tools/build_standalone.py` 后双击 `index.html` | **全量真实目录**（数据走 `_res/catalog.js`，缩略图走 `_thumbs/`） |
 | **本地全量** | 双击 `start_vault.bat` | 全部功能（3D、贴图覆盖、在资源管理器中定位） |
 
-不需要「先读文档找到入口，再进到某个子目录下找那个文件」——`dist/资产库.html` 是单个 HTML，
-`index.html` 就在仓库根目录，两个都能直接双击。
+不需要「先读文档找到入口，再进到某个子目录下找那个文件」——`index.html` 就在仓库根目录，双击即可。
+
+关于两种「一个文件」的边界（这里踩过坑，写清楚）：
+
+- `index.html` 是**全量库**的双击入口。它旁边有 `_res/` 与 `_thumbs/`，相对路径正常。
+- `dist/资产库.html` 是**单文件**形态，只保证在演示数据下真正自足 —— 那里缩略图是内联 SVG。
+  真实库的 `_thumbs/` 有 156 MB，内联不进去；而且单文件一旦放进 `dist/`，
+  里面的 `_thumbs/…` 会解析成 `dist/_thumbs/…`（不存在），三万多张卡片会全部写「无缩略图」。
+  所以真实数据下默认**不**生成单文件（`--form single` 可以硬要，但你会看到上面那个结果）。
 
 > 为什么双击也能读数据：浏览器在 `file://` 下会拦掉 `fetch()`，但**脚本标签不受同源限制**。
 > 所以 `tools/build_standalone.py` 把目录数据写成 `_res/catalog.js`（`window.CATALOG = {...}`），
 > `index.html` 优先读它、读不到再退回 `fetch('catalog_v3.json')`、都没有就给出可执行的下一步。
+> 演示构建写的是 `_res/catalog.demo.js`，**永不覆盖**本机真实目录。
 
 ## 为什么仓库里没有模型文件
 
@@ -36,6 +44,7 @@
 | `_thumbs/` | 156 MB | `build_thumbs.py` 离屏渲染的缩略图 |
 | `catalog_v3.json` | 13 MB | `build_catalog_v3.py` 扫描生成的目录 |
 | `_res/catalog.js` | 13 MB | 同一份目录的「双击可读」写法，`build_standalone.py` 生成 |
+| `_res/catalog.demo.js` | 0.2 MB | 演示数据的落点（演示构建不碰上面那份真实目录） |
 | `_res/catalog.json`、`_res/geom_cache.json` | 11 MB | 旧版目录与几何缓存 |
 | `dist/`、`_site/` | — | 打包产物（单文件 / 发布站点），由脚本生成 |
 | `viewer.html` | 7.8 MB | 旧版单文件查看器（已被 `index.html` 取代） |
@@ -115,8 +124,9 @@ build_catalog_v3.py     扫描 models/ → catalog_v3.json
 build_thumbs.py         软件光栅化每个 OBJ → _thumbs/<id//1000>/<id>.webp
 verify_ui.py            真实浏览器自检：结构 + 截图 + 版面像素 + --route 命令路由点击链路
 process_obj.py          旧版 OBJ→JS 转义缓存（保留，新界面不依赖）
-tools/build_standalone.py  出「双击即用」两种形态：_res/catalog.js 与 dist/资产库.html
+tools/build_standalone.py  出「双击即用」形态：_res/catalog.js 与（演示数据下的）单文件
 tools/build_site.py        组装可发布的演示站点（本地与 CI 同源，cd.yml 直接调它）
+tools/check_doubleclick.py 以 file:// 打开页面截图，验「双击就能看到东西」
 tools/                     门禁：路径纪律 / 明文 / 语法 / GitHub API 推送
 docs/DESIGN.md          设计规范（现行）
 docs/archive/           过期设计稿（留痕，非规范）
@@ -204,13 +214,21 @@ python tools/syntax_check.py     # 语法门：Python 编译 + 内联 JS（node 
 ruff check .                     # 当前 0 命中
 mypy --config-file mypy.ini build_catalog_v3.py build_thumbs.py serve_v3.py verify_ui.py \
      process_obj.py tools/path_check.py tools/secret_check.py tools/syntax_check.py \
-     tools/_push_via_api.py tools/build_standalone.py tools/build_site.py
+     tools/_push_via_api.py tools/build_standalone.py tools/build_site.py tools/check_doubleclick.py
 
 # 界面回归（需要浏览器 + 本地服务 + numpy/Pillow）
 python verify_ui.py              # 结构 + 截图 + 版面像素
 python verify_ui.py --route      # 命令路由：点卡片/分类 chip/标记 chip/关联/贴图/平铺，
                                  # 逐条断言「命令被派发」与「能力留下可验证的后果」
+
+# 双击可用性（无头浏览器以 file:// 打开并截图，不需要服务）
+python tools/check_doubleclick.py
 ```
+
+`check_doubleclick.py` 是唯一一条**不依赖本地服务**的界面判据：它要验的恰恰是没有服务时的表现。
+没有 `POST /diag` 回传通道，就直接看截图 —— 出了卡片网格的截图都在 60 KB 以上，
+白图/报错页是近乎纯色的小图，一量就知道。这条判据抓到过 `dist/资产库.html` 在 `dist/` 下
+缩略图全断的问题（`file://` 下相对路径按文件自身位置解析，不是按仓库根）。
 
 `verify_ui.py` 把探针脚本注进页面，页面通过 `POST /diag` 把 DOM 诊断回传落盘，再截三张图
 做像素级版面分析。之所以这样绕：无头 Edge 的 `--dump-dom` 在部分环境下不出内容，而截图

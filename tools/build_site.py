@@ -38,11 +38,15 @@ def build(out: Path) -> None:
         shutil.rmtree(out)
     (out / '_res').mkdir(parents=True)
 
-    # 1) 页面 + 目录数据（_res/catalog.js）；--assets-dir 顺带把合成 OBJ 落到 models/demo/ 下，
-    #    走的是与真实资产完全相同的相对路径，所以 3D 查看器不需要任何「演示模式」分支。
+    # 1) 页面 + 目录数据；--js-out 把数据直接写进站点自己的 _res/，不去碰本机的真实目录
+    #    （默认落点就是本机那份 _res/catalog.js，演示构建一覆盖，双击 index.html 的人
+    #     会在毫不知情的情况下看到合成数据）。--assets-dir 顺带把合成 OBJ 与贴图落到
+    #    models/demo/ 下，走的是与真实资产完全相同的相对路径，所以 3D 查看器不需要任何
+    #    「演示模式」分支。
     subprocess.run(
         [sys.executable, '-X', 'utf8', str(ROOT / 'tools' / 'build_standalone.py'),
-         '--demo', '--out', str(out / 'index.html'), '--assets-dir', str(out)],
+         '--demo', '--form', 'both', '--out', str(out / 'index.html'),
+         '--assets-dir', str(out), '--js-out', str(out / '_res' / 'catalog.js')],
         cwd=str(ROOT), check=True)
 
     # 2) 运行时资源 + 许可
@@ -51,7 +55,6 @@ def build(out: Path) -> None:
         if not src.is_file():
             sys.exit('缺少运行时资源 %s —— 它应当随仓提供' % rel)
         shutil.copy2(src, out / rel)
-    shutil.copy2(ROOT / '_res' / 'catalog.js', out / '_res' / 'catalog.js')
     if (ROOT / 'LICENSE').is_file():
         shutil.copy2(ROOT / 'LICENSE', out / 'LICENSE')
 

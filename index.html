@@ -639,7 +639,7 @@ function loadCatalog(){
   if(window.CATALOG && window.CATALOG.items) return Promise.resolve(window.CATALOG);
   return fetch('catalog_v3.json').then(r=>r.json()).catch(err=>{
     if(OFFLINE) throw new Error('双击打开时读不到 _res/catalog.js。' +
-      '请先运行：python tools/build_standalone.py --only-js');
+      '请先运行：python tools/build_standalone.py --form js');
     throw err;
   });
 }

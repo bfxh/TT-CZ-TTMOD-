@@ -7,15 +7,17 @@
 
 产出：
   1. `_res/catalog.js`     —— `window.CATALOG = {...}`，index.html 优先读它，读不到再退回 fetch
-  2. `dist/资产库.html`     —— 真·单文件：图标系统 + 目录数据全部内联，拷到哪都能双击打开
-                              （3D 预览与「打开文件位置」仍需本地服务，页面会给出提示）
-  3. `--demo --assets-dir D` —— 合成数据 + 合成 OBJ 落到 D/ 下，给在线演示站用
+  2. `dist/资产库.html`     —— 真·单文件（图标系统 + 目录数据全内联），拷到哪都能双击打开。
+                              真实库的缩略图有 156 MB 内联不进去，而且 dist/ 下的相对路径会让
+                              `_thumbs/` 全部失效，所以单文件默认只在 `--demo` 下生成
+  3. `--demo --assets-dir D` —— 合成数据 + 合成 OBJ/贴图落到 D/ 下，给在线演示站用
 
 用法：
-  python tools/build_standalone.py                # 两个都生成
-  python tools/build_standalone.py --only-js      # 只生成 _res/catalog.js
+  python tools/build_standalone.py                # 真实库：出 _res/catalog.js（双击 index.html）
+  python tools/build_standalone.py --demo         # 合成数据：catalog.js + 真自足的单文件
   python tools/build_standalone.py --demo --assets-dir _site --out _site/index.html
                                                   # CI 用：不含任何资产信息的可跑演示站
+  python tools/build_standalone.py --form single  # 真实数据的单文件（会缺缩略图，慎用）
 """
 from __future__ import annotations
 
@@ -298,14 +300,19 @@ def load_items(use_demo: bool) -> list[dict]:
     return doc['items'] if isinstance(doc, dict) else doc
 
 
-def write_catalog_js(items: list[dict], demo: bool = False) -> Path:
-    """写成脚本而不是 JSON：file:// 下 fetch 被同源策略拦，script 标签不受限。"""
-    CATALOG_JS.parent.mkdir(parents=True, exist_ok=True)
+def write_catalog_js(items: list[dict], demo: bool = False, out: Path | None = None) -> Path:
+    """写成脚本而不是 JSON：file:// 下 fetch 被同源策略拦，script 标签不受限。
+
+    `out` 可指定落点 —— 演示构建必须显式指到别处，否则会把本机的真实
+    `_res/catalog.js` 覆盖成合成数据，而双击 index.html 的人不会收到任何提示。
+    """
+    dst = out or CATALOG_JS
+    dst.parent.mkdir(parents=True, exist_ok=True)
     payload = json.dumps(_doc(items, demo), ensure_ascii=False, separators=(',', ':'))
     header = ('/* 由 tools/build_standalone.py 生成，不要手改；已加入 .gitignore。\n'
               '   作用：让 index.html 在 file://（双击打开）下也能拿到目录数据。 */\n')
-    CATALOG_JS.write_text(header + 'window.CATALOG = ' + payload + ';\n', encoding='utf-8')
-    return CATALOG_JS
+    dst.write_text(header + 'window.CATALOG = ' + payload + ';\n', encoding='utf-8')
+    return dst
 
 
 def _doc(items: list[dict], demo: bool) -> dict:
@@ -350,15 +357,22 @@ def build_single_file(items: list[dict], out: Path, demo: bool = False) -> Path:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--demo', action='store_true', help='用合成数据（CI 用）')
-    ap.add_argument('--only-js', action='store_true', help='只生成 _res/catalog.js')
-    ap.add_argument('--out', default=str(DIST / '资产库.html'))
+    ap.add_argument('--form', choices=('auto', 'js', 'single', 'both'), default='auto',
+                    help='出什么形态。auto：真实数据出 js（双击 index.html），'
+                         '演示数据出 both（单文件在演示下才是真自足的，缩略图是内联 SVG）')
+    ap.add_argument('--out', default=str(DIST / '资产库.html'), help='单文件的落点')
+    ap.add_argument('--js-out', default='',
+                    help='_res/catalog.js 的落点；演示构建请显式指开，别覆盖本机真实目录')
     ap.add_argument('--assets-dir', default='',
-                    help='把合成 OBJ 落到该目录下（配合 --demo 做在线演示站用）')
+                    help='把合成 OBJ + 贴图落到该目录下（配合 --demo 做在线演示站用）')
     a = ap.parse_args()
 
+    form = a.form
+    if form == 'auto':
+        form = 'both' if a.demo else 'js'
     items = load_items(a.demo)
 
-    # 合成 OBJ 只对「起服务的演示站」有意义：单文件版在 file:// 下根本发不出请求，
+    # 合成 OBJ / 贴图只对「起服务的演示站」有意义：单文件版在 file:// 下根本发不出请求，
     # 内联进去除了让文件更大没有任何收益，所以默认丢弃。
     if a.assets_dir and a.demo:
         n_obj, n_tex = write_demo_assets(items, Path(a.assets_dir))
@@ -367,18 +381,43 @@ def main() -> int:
         for it in items:
             it.pop('_obj', None)
 
-    js = write_catalog_js(items, a.demo)
-    print('已写 %s  （%d 个模型，%.1f MB）%s' % (js.relative_to(ROOT), len(items),
-                                             js.stat().st_size / 1048576,
-                                             '  [演示数据]' if a.demo else ''))
+    if form in ('js', 'both'):
+        # 演示构建永不落在本机真实的 _res/catalog.js 上：那条路径是 index.html 双击时要读的，
+        # 一旦被合成数据覆盖，打开看到的是一份假目录而且没有任何提示。
+        # 所以演示数据默认写到 _res/catalog.demo.js，要别的落点就显式 --js-out。
+        if a.js_out:
+            js_dst = Path(a.js_out)
+        elif a.demo:
+            js_dst = ROOT / '_res' / 'catalog.demo.js'
+        else:
+            js_dst = CATALOG_JS
+        js = write_catalog_js(items, a.demo, js_dst)
+        print('已写 %s  （%d 个模型，%.1f MB）%s' % (os_rel(js), len(items),
+                                                 js.stat().st_size / 1048576,
+                                                 '  [演示数据]' if a.demo else ''))
 
-    if not a.only_js:
+    # 单文件只有在「缩略图能内联」时才真的自足：演示数据的缩略图是内联 SVG，
+    # 而真实库的 _thumbs/ 有 156 MB，内联不进去。更要命的是单文件一旦放进 dist/，
+    # 里面的相对路径 `_thumbs/…` 会解析成 `dist/_thumbs/…`（不存在），
+    # 结果是三万多张卡片全部写「无缩略图」—— 一个看起来能用、实际缺了一半的产物。
+    # 所以真实数据下默认不出单文件；双击入口就是仓库根目录的 index.html。
+    if form in ('single', 'both'):
         out = build_single_file(items, Path(a.out), a.demo)
-        print('已写 %s  （%.1f MB）' % (out.relative_to(ROOT) if ROOT in out.parents else out,
-                                       out.stat().st_size / 1048576))
-        print('\n双击这个文件即可打开资产库；3D 预览与「打开文件位置」需要本地服务，')
-        print('页面会给出提示，或双击 start_vault.bat 启动服务。')
+        print('已写 %s  （%.1f MB）' % (os_rel(out), out.stat().st_size / 1048576))
+        print('这个文件可以拷到任何地方双击打开；3D 预览与「打开文件位置」需要本地服务。')
+
+    if form == 'js' and not a.demo:
+        print('\n双击入口：仓库根目录的 index.html（数据走 _res/catalog.js，缩略图走 _thumbs/）。')
+        print('要一个不含缩略图的单文件时加 --form single。')
     return 0
+
+
+def os_rel(p: Path) -> str:
+    """尽量给相对仓库根的短路径，方便把命令直接复制出去用"""
+    try:
+        return str(p.relative_to(ROOT)).replace('\\', '/')
+    except ValueError:
+        return str(p)
 
 
 if __name__ == '__main__':
