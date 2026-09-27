@@ -79,6 +79,17 @@ jobs:
           echo "单文件体积：$(du -h "dist/资产库.html" | cut -f1)"
           echo "站点体积：$(du -sh _site | cut -f1)"
 
+          {
+            echo "### CD 产物"
+            echo ""
+            echo "| 产物 | 规模 |"
+            echo "|---|---|"
+            echo "| \`dist/资产库.html\`（单文件，双击打开） | $(du -h "dist/资产库.html" | cut -f1) |"
+            echo "| \`_site/\`（Pages 站点） | $(du -sh _site | cut -f1) |"
+            echo "| 演示条目 | $n_item 条（合成数据，页面顶部有「演示数据」提示条） |"
+            echo "| 合成 OBJ | $n_obj 个 |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         with:
           name: vault-standalone
@@ -100,13 +111,32 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
+      - name: 探测 Pages 是否已启用
+        # 没开 Pages 时 GITHUB_TOKEN 没有建站权限（Resource not accessible by integration），
+        # configure-pages 会直接把 job 打红 —— 但那是**仓库设置**没做，不是代码坏了。
+        # 所以先探测：没开就给一条可执行的启用命令然后跳过，别让一个配置前提伪装成回归。
+        id: probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/pages" >/dev/null 2>&1; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+            echo "Pages 已启用"
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice title=GitHub Pages 未启用，已跳过部署::启用一次即可（之后自动）：gh api -X POST repos/${GITHUB_REPOSITORY}/pages -f build_type=workflow　或在 Settings → Pages 把 Source 设为 GitHub Actions。"
+          fi
+
       - uses: actions/configure-pages@v5
-        with:
-          # 仓库还没开 Pages 时自动开（并把 Source 设成 GitHub Actions），
-          # 否则这一步只做探测、开关得去 Settings → Pages 手动点
-          enablement: true
+        if: steps.probe.outputs.ready == 'true'
       - id: deploy
+        if: steps.probe.outputs.ready == 'true'
         uses: actions/deploy-pages@v4
+
+      - name: 汇报站点地址
+        if: steps.probe.outputs.ready == 'true'
+        run: echo "演示站：${{ steps.deploy.outputs.page_url }}"
 
   release:
     name: 打 tag 时发 Release
