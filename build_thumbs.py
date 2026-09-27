@@ -23,7 +23,10 @@ import time
 from multiprocessing import Pool
 
 import numpy as np
-from PIL import Image
+
+# Pillow 只在最后保存那一步用得上，所以按需导入：让 raster() 这个纯渲染入口
+# 只依赖 numpy —— 缩略图朝向门（tools/thumb_orient_check.py）与演示缩略图构建
+# 都只需要渲染，不该为了它们去装一个编码库。
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(ROOT, '_thumbs')
@@ -219,6 +222,7 @@ def work(task):
         img = raster(v, f, KIND_COLOR.get(kind, DEFAULT_COLOR))
         if img is None:
             return 'empty'
+        from PIL import Image
         im = Image.fromarray(img, 'RGBA')
         if SS > 1:
             im = im.resize((SIZE, SIZE), Image.Resampling.LANCZOS)
