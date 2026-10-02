@@ -48,3 +48,8 @@ viewer.html
 index.original.html
 _diag.txt
 _t.html
+
+# 界面自检留下的临时页与暂存目录（不该提交）
+_shot_*.html
+_probe_*.html
+_trash_*/

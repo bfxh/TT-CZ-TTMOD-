@@ -104,19 +104,52 @@ Unicode 数据。工程名从 `assets/UECommandLine.txt` 可读到是 `BattleMec
 # 1) 准备资产（模型放到 models/ 下，目录名按 build_catalog_v3.py 的 GAMES 常量来）
 #    01_泰拉科技/  02_战争机器人/  03_重装上阵/  04_战斗泰坦/（可选，缺了就跳过）
 
-# 2) 生成目录（多进程扫描 OBJ，几何信息带缓存，重跑秒过）
+# 2) 贴图默认压成 WebP（省空间的大头；先 --sample 200 看压缩比）
+python tools/shrink_textures.py   # 需要 Pillow；幂等，可中断重跑
+
+# 3) 生成目录（多进程扫描 OBJ，几何信息带缓存，重跑秒过）
 python build_catalog_v3.py
 
-# 3) 生成缩略图（纯 numpy 软件光栅化，31,611 个约 3 分钟）
+# 4) 生成缩略图（纯 numpy 软件光栅化，31,611 个约 3 分钟）
 python build_thumbs.py            # 先 --sample 300 看效果
 
-# 4) 起服务（自动找 8800-8899 空闲端口）
+# 5) 起服务（自动找 8800-8899 空闲端口）
 python serve_v3.py                # 或双击 start_vault.bat（自动开浏览器）
 ```
 
 `build_catalog_v3.py` 会合并 `terra_manifest.json` / `warrobots_manifest.json` /
 `ironsaga_manifest.json`（若存在）以取得真实资源名与贴图角色；缺这些清单也能跑，
 只是重装上阵的模型会退回数字编号名。
+
+## 空间：资源默认压缩
+
+`models/` 是这台机器上最大的一块。实测拆开看（压缩前）：
+
+| 项 | 数量 | 占用 | 说明 |
+|---|---|---|---|
+| 贴图 `.png` | 22,811 | **6.31 GB** | 真实资源 |
+| OBJ `.obj` | 31,611 | 2.46 GB | 真实资源 |
+| OBJ 副本 `.obj.js` | 31,611 | **2.46 GB** | 旧查看器 `viewer.html` 的复制品，已删 |
+
+两条默认动作，写在 `tools/shrink_textures.py` 与本文件里，不是一次性的手工操作：
+
+1. **贴图压成 WebP**（`tools/shrink_textures.py`，默认 q90）。
+   PNG 是无损格式，对游戏贴图这种大面积平滑渐变非常不划算。实测 250 张抽样：
+   无损 WebP 到 73%、有损 q90 到 14%（丢掉 alpha 的理想值）——
+   但**真实值是 ~35%**，因为 63% 的贴图真的用了 alpha 通道，必须保留。
+   另有一个无损优化：37% 的 RGBA 图 alpha 全是 255，这些按 RGB 存，体积差一倍以上。
+   压缩后 `build_catalog_v3.py` 依然能把旧清单里的 `.png` 名字对上 ——
+   贴图匹配已经改成**按文件名主干**而不是全名（否则精确映射会静默降级成前缀启发式）。
+2. **不留复制品**。`viewer.html` 时代的 `.obj.js`（每份 OBJ 的逐字副本，只为了
+   `<script src>` 绕过 file:// 的 fetch 限制）已随旧查看器一起退役。
+
+⚠️ 有损不可逆：泰拉科技 / 战争机器人 还有源包（`TerraTech.7z` / `WarRobots.7z`）可重出，
+**重装上阵本地没有存档**，压之前想清楚。`--lossless` 或 `--keep` 可以避免有损/保留原图。
+
+顺带发现一处坏数据（未处理，仅记录）：`models/01_泰拉科技/_textures_misc/` 下
+**233 个 `.jpg` 里 229 个是坏的**（文件头是 `FF D8 FF`，但后面的 JPEG 标记全是垃圾，
+Pillow 直接报 `UnidentifiedImageError` / `Truncated File Read`）。它们在界面上会显示成
+加载失败的贴图缩略图。需要的话可以删掉 —— 但那是源数据，我没有擅自动。
 
 ## 设计理念：信息对象 → UI 组件 → 命令 → 能力
 

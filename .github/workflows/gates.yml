@@ -23,6 +23,7 @@ env:
     tools/path_check.py tools/secret_check.py tools/syntax_check.py tools/_push_via_api.py
     tools/build_standalone.py tools/check_doubleclick.py tools/thumb_orient_check.py
     tools/serve_guard_check.py tools/artifact_guard_check.py
+    tools/shrink_textures.py
 
 jobs:
   repo-gates:

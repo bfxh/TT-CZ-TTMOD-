@@ -134,7 +134,8 @@ FOLDER_KIND = {
     '特效配件': 'vfx', '通用资源': 'misc', '道具物品': 'prop',
 }
 
-TEX_EXT = ('.png', '.jpg', '.jpeg', '.bmp', '.tga')
+# 贴图扩展名。.webp 是 tools/shrink_textures.py 压出来的，与 png 同等对待
+TEX_EXT = ('.png', '.jpg', '.jpeg', '.bmp', '.tga', '.webp')
 
 
 # ============================================================
@@ -371,7 +372,9 @@ def main():
     files = []          # (rel, abs, gid, folder, stem)
     tex_by_dir = defaultdict(list)   # dir -> [(stem, rel)]
     tex_by_game = defaultdict(list)  # gid -> [(stem, rel)]
-    png_byname: dict = defaultdict(dict)   # gid -> {basename_lower: rel}
+    # gid -> {文件名主干(lower): rel}。**按主干而不是全名**索引：
+    # 旧清单里写的是 `x.png`，而盘上可能是压过的 `x.webp`，按全名匹配会全部落空。
+    tex_byname: dict = defaultdict(dict)
 
     for gid, folder, *_ in GAMES:
         gdir = os.path.join(MODELS, folder)
@@ -391,7 +394,7 @@ def main():
                     st = os.path.splitext(fn)[0]
                     tex_by_dir[root].append((st, rel))
                     tex_by_game[gid].append((st, rel))
-                    png_byname[gid].setdefault(fn.lower(), rel)
+                    tex_byname[gid].setdefault(os.path.splitext(fn)[0].lower(), rel)
 
     print('  模型 %d 个，贴图 %d 张' % (len(files), sum(len(v) for v in tex_by_game.values())))
 
@@ -441,9 +444,9 @@ def main():
 
         # --- 贴图关联：1) 旧清单精确映射（带角色）2) 名字前缀启发式 ---
         texts, roles, tq = [], [], 0
-        gidx = png_byname.get(gid, {})
+        gidx = tex_byname.get(gid, {})
         for role, bn in lg.get('tex', []):
-            rt = gidx.get(bn.lower())
+            rt = gidx.get(os.path.splitext(bn)[0].lower())
             if rt and rt not in texts:
                 texts.append(rt)
                 roles.append(role)
