@@ -592,7 +592,11 @@ const setU = (n,v) => { if(n.getAttribute('href') !== v) n.setAttribute('href', 
 const TH = it => '_thumbs/' + Math.floor(it.id/1000) + '/' + it.id + '.webp';
 
 /* 颜色只做「点」，不用来铺面板 */
-const GAMES = {tt:['泰拉科技','#3E9B4F','g-hex'], wr:['战争机器人','#C07A1E','g-shield'], is:['重装上阵','#8A5BD6','g-gear']};
+/* 游戏：中文名 + 点色。第三位曾经挂着 'g-hex'/'g-shield'/'g-gear'，但全页从来没有读过它
+   （符号系统里也没有这几个 id），是死数据，已删。新增游戏往这里补一条即可；
+   目录里有、这里没有的 gid 会自动退回「用 gid 当名字 + 中性灰」，不会消失。 */
+const GAMES = {tt:['泰拉科技','#3E9B4F'], wr:['战争机器人','#C07A1E'],
+               is:['重装上阵','#8A5BD6'], bot:['战斗泰坦','#12A5C6']};
 const KINDS = {
  module:['模块','#3D7BE0'], weapon:['武器','#C0503F'], mech:['机甲','#B4791F'],
  mobile:['载具','#3E8FA8'], struct:['建筑','#5A5AA8'], terrain:['地形','#8A7355'],
@@ -908,7 +912,7 @@ $('stage').addEventListener('scroll', ()=>{ if(raf) return;
   raf = requestAnimationFrame(()=>{ raf=null; layout(false); }); }, {passive:true});
 
 function paintCard(el, it){
-  const c = el._c, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96','g-hex'];
+  const c = el._c, k = KINDS[it.k]||KINDS.misc, gm = GAMES[it.g]||[it.g,'#8E8E96'];
   // 缩略图高度不在这里写死：统一由 :root 的 --thumbH 下发（applyGeom），
   // 保证「算给虚拟滚动的高度」与「CSS 实际画出来的高度」是同一个数
   const src = enc(TH(it));
@@ -1508,8 +1512,19 @@ $('shNext').onclick = ()=> { if(S.idx<S.view.length-1) open(S.idx+1); };
 $('shFav').onclick = ()=> toggleFav(S.cur);
 
 /* ─────────── 左侧导航 + 筛选面板 ─────────── */
+/* 游戏行（筛选面板与统计面板共用）。
+   两点讲究：
+     · **0 条的不列** —— 点了只会得到空结果，那是死入口；
+     · **目录里有但 GAMES 里没有的 gid 也要列** —— 否则新游戏接了资源却不出现在筛选里，
+       只能靠搜索找到，是个静默的洞。名字退回 gid、颜色退回中性灰。 */
+function gameRows(){
+  const known = Object.entries(GAMES).map(([k,v])=>[k,v[0],v[1],S.counts.game[k]||0]);
+  const extra = Object.keys(S.counts.game).filter(g=>!(g in GAMES))
+    .map(g=>[g,g,'#8E8E96',S.counts.game[g]||0]);
+  return known.concat(extra).filter(o=>o[3]>0);
+}
 const PANELS = {
-  game:{t:'按游戏筛选',ic:'game',key:'game',list:()=>Object.entries(GAMES).map(([k,v])=>[k,v[0],v[1],S.counts.game[k]||0])},
+  game:{t:'按游戏筛选',ic:'game',key:'game',list:gameRows},
   kind:{t:'按统一分类筛选',ic:'kind',key:'kind',list:()=>Object.entries(KINDS).map(([k,v])=>[k,v[0],v[1],S.counts.kind[k]||0])},
   fac:{t:'按分组／目录筛选',ic:'group',key:'fac',list:()=>{
       const e = Object.entries(S.counts.fac).sort((a,b)=>b[1]-a[1]);
@@ -1579,7 +1594,7 @@ document.addEventListener('error', e=>{
 
 const pop = $('pop');
 function openStats(){
-  const byG = Object.entries(GAMES).map(([k,v])=>[v[0], S.items.filter(i=>i.g===k).length, v[1]]);
+  const byG = gameRows().map(o=>[o[1], S.items.filter(i=>i.g===o[0]).length, o[2]]);
   const byK = Object.entries(KINDS).map(([k,v])=>[v[0], S.items.filter(i=>i.k===k).length, v[1]])
     .sort((a,b)=>b[1]-a[1]);
   const mx = Math.max(...byK.map(x=>x[1]));

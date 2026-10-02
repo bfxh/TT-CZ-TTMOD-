@@ -1,7 +1,10 @@
-# 资产库 · 三游戏统一资产浏览器
+# 资产库 · 多游戏统一资产浏览器
 
-把三款游戏（TerraTech / War Robots / Iron Saga）导出的 3D 模型堆成一个**可搜、可比、可预览**的本地资产库。
+把多款游戏导出的 3D 模型堆成一个**可搜、可比、可预览**的本地资产库。
 纯静态前端 + 一个零依赖 Python 服务，没有构建步骤。
+
+当前已入库三款：TerraTech / War Robots / Iron Saga；第四款 **Battle of Titans（战斗泰坦）**
+已留好接入位（`models/04_战斗泰坦/`），资源一到就自动生效 —— 见「加第 N 个游戏」。
 
 ```
 31,611 个 OBJ · 17,217 唯一资产 · 14,394 重复副本 · 2.5 GB · 31,396 张离线渲染缩略图
@@ -33,6 +36,51 @@
 > 所以 `tools/build_standalone.py` 把目录数据写成 `_res/catalog.js`（`window.CATALOG = {...}`），
 > `index.html` 优先读它、读不到再退回 `fetch('catalog_v3.json')`、都没有就给出可执行的下一步。
 
+## 加第 N 个游戏（换一批资产）
+
+三步，没有别的机关：
+
+```bash
+# 1) 把导出的模型放进 models/<NN>_<中文名>/，然后往 GAMES 表末尾**追加**一条
+#    build_catalog_v3.py:  ('bot', '04_战斗泰坦', '战斗泰坦', 'Battle of Titans', '#0FB5C9')
+#    index.html:           bot:['战斗泰坦','#12A5C6']
+python build_catalog_v3.py      # 扫出目录；新素材没缩略图，下一步补
+python build_thumbs.py          # 只渲缺的那些（已存在的自动跳过）
+```
+
+**⚠️ 只能往 GAMES 末尾追加，不能在中间插。** 入库序号 `<id>` 是按「GAMES 顺序 + 目录遍历顺序」
+递增分配的，而缩略图文件名就是 `_thumbs/<id//1000>/<id>.webp` —— 中间插一条会把后面所有游戏的
+序号整体挪位，等于三万多张缩略图集体错位。追加不会动到已有序号（实测重建前后
+`id → 路径` 映射 0 处变化）。
+
+界面侧不需要额外改：
+
+- 游戏筛选面板与统计是**数据驱动**的，会自动列出目录里存在的 gid；
+- **0 条的游戏不出现**（点了只会得到空结果，那是死入口），所以接入位留好了也不会有空 chip；
+- `index.html` 的 `GAMES` 里没有的 gid 会退回「用 gid 当名字 + 中性灰」，不会消失 ——
+  但如果想显示正常的中文名与点色，还是补一条。
+
+### 战斗泰坦（B.o.T）的现状
+
+`B.o.T.apk`（58 MB，包名 `com.rbuttongames.battlemechs`）**里面没有模型**，别白翻：
+它是 Unreal Engine 4，APK 只装了引擎运行时（`lib/arm64-v8a/libUnreal.so` 116 MB 解压后）
+与腾讯/微博 SDK；`assets/` 下没有任何 `.pak`/`.uasset`，`.res`/`.nrm`/`.spp` 全是 IBM ICU 的
+Unicode 数据。工程名从 `assets/UECommandLine.txt` 可读到是 `BattleMechs.uproject`，
+`classes.dex` 里引用 `application/vnd.android.obb` —— 内容走 **OBB / Play Asset Delivery**，
+或者运行时从 CDN 下载到应用数据目录。完整安装约 1.3 GB，对比之下 APK 的 58 MB 就很说明问题。
+
+要拿到模型，三条路（按省事程度）：
+
+1. **同一个镜像站下载 XAPK / APK+OBB 变体**（而不是纯 `.apk`）。OBB 名为
+   `main.<版本号>.com.rbuttongames.battlemechs.obb`，里面是 UE 的 `Content/Paks/*.pak`。
+2. **装到手机上跑一次再 adb pull**：内容会落在
+   `/sdcard/Android/data/com.rbuttongames.battlemechs/`（UE 的 PersistentDownloadDir）
+   与 `/sdcard/Android/obb/com.rbuttongames.battlemechs/`。
+3. 找现成的 dump（像本机已有的 `TerraTech.7z` / `WarRobots.7z` 那样）。
+
+拿到 `.pak` 之后的流程：UE4 的 pak 用 umodel / FModel / repak 解包导出 meshes（psk/obj）
+与贴图，再落进 `models/04_战斗泰坦/`。注意 pak 可能带 AES 加密，届时需要对应的密钥。
+
 ## 为什么仓库里没有模型文件
 
 `models/` 里的 OBJ 与贴图是**各游戏厂商的版权内容**（Payload Studios 等），且总量 2.5 GB / 3 万余文件。
@@ -53,8 +101,8 @@
 ## 快速开始（本地全量）
 
 ```bash
-# 1) 准备资产（把三款游戏导出的模型放到 models/ 下，目录名按 GAMES 常量来）
-#    01_泰拉科技/  02_战争机器人/  03_重装上阵/
+# 1) 准备资产（模型放到 models/ 下，目录名按 build_catalog_v3.py 的 GAMES 常量来）
+#    01_泰拉科技/  02_战争机器人/  03_重装上阵/  04_战斗泰坦/（可选，缺了就跳过）
 
 # 2) 生成目录（多进程扫描 OBJ，几何信息带缓存，重跑秒过）
 python build_catalog_v3.py

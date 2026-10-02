@@ -528,6 +528,23 @@ setTimeout(function(){
          '注入自测：恶意名字确实以**文本**显示出来了（不是被静默丢掉）');
       Object.keys(keep).forEach(function(k){ it0[k] = keep[k]; });
 
+      /* ⑩ 游戏接入位：GAMES 里已经留了第四款（战斗泰坦），但目录里还没有它的资产。
+            留接入位不等于要有死入口 —— 筛选面板与统计里都不该出现 0 条的游戏；
+            一旦资源到位（models/04_战斗泰坦 有东西），它会自动出现。 */
+      clearAll();
+      var rows = gameRows();
+      var dead = rows.filter(function(o){ return !(S.counts.game[o[0]] > 0); });
+      ok(rows.length === Object.keys(S.counts.game).filter(function(g){
+           return S.counts.game[g] > 0; }).length && dead.length === 0,
+         '游戏列表只列有资产的：'+rows.map(function(o){ return o[1]+'('+o[3]+')'; }).join(' ')
+         + (dead.length ? '　← 0 条的死入口: '+dead.map(function(o){ return o[1]; }).join(',') : ''));
+      curP='game'; openFly('game');
+      await sleep(250);
+      var flyTxt = (document.getElementById('flyL')||{}).textContent || '';
+      ok(flyTxt.indexOf('战斗泰坦') < 0,
+         '留了接入位也不出空 chip（战斗泰坦未入库 → 筛选面板里没有它）');
+      closeFly();
+
     }catch(e){
       ok(false, '探针异常：'+(e && e.message || e));
     }

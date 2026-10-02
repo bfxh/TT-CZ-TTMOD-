@@ -26,10 +26,17 @@ LEGACY_DIR = os.path.dirname(BASE)
 OUT = os.path.join(BASE, 'catalog_v3.json')
 GEOM_CACHE = os.path.join(BASE, '_res', 'geom_cache.json')
 
+# 游戏表：id / 目录名 / 中文名 / 英文名 / 点色
+# ⚠️ 只能往**末尾**追加。中间插一条会把后面所有游戏的入库序号整体挪位，
+#    而 _thumbs/<id//1000>/<id>.webp 是按序号命名的 —— 那等于三万多张缩略图全部错位。
 GAMES = [
     ('tt', '01_泰拉科技', '泰拉科技', 'TerraTech', '#34C759'),
     ('wr', '02_战争机器人', '战争机器人', 'War Robots', '#FF9F0A'),
     ('is', '03_重装上阵', '重装上阵', 'Iron Saga', '#BF5AF2'),
+    # 战斗泰坦（B.o.T，Unreal Engine 4，包名 com.rbuttongames.battlemechs）。
+    # 资源在 OBB / 运行时下载里，不在 APK 内 —— 拿到内容后放进 models/04_战斗泰坦 即可生效；
+    # 目录不存在时下面的 isdir 检查会跳过并告警，不会产生 0 条的死数据。
+    ('bot', '04_战斗泰坦', '战斗泰坦', 'Battle of Titans', '#0FB5C9'),
 ]
 GAME_BY_FOLDER = {f: gid for gid, f, *_ in GAMES}
 
